@@ -2,17 +2,14 @@
 JusDef: Full model assembling all components.
 
 Architecture:
-  1. Input projection (all node types: 768 -> hidden_dim)
-  2. Standard HeteroConv for non-r2 edges (r1, r4, r7, r8)
-  3. DMP for r2 edges (sec -> conc, with defeat)
-  4. Section-level attention pooling -> document embedding
-  5. Dot-product logits against label embeddings
-
-When DMP is disabled (ablation -DMP), r2 edges use standard SAGEConv
-and the model reduces to an R-GCN-style variant.
-
-Reference: JusDef paper Section 4
+1. Input projection (all node types: 768 -> hidden_dim)
+2. Standard HeteroConv for non-r2 edges
+3. DMP for r2 edges (sec -> conc, with defeat)
+4. Reverse mention propagation (conc -> sec)
+5. Section-level attention pooling -> document embedding
+6. Dot-product logits against label embeddings
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -23,51 +20,54 @@ from src.model.dmp_layer import DMPLayer
 
 
 class JusDef(nn.Module):
-    """
-    Full JusDef model.
-
-    Stages:
-      1. Input projection (all node types)
-      2. Standard HeteroConv for non-r2 edges
-      3. DMP for r2 (sec -> conc) edges with defeat
-      4. Section-level attention pooling -> document embedding
-      5. Label scoring by dot-product logits
-    """
-
-    def __init__(self, in_dim=768, hidden_dim=512, num_layers=2,
-                 dropout=0.3, temperature=5.0, use_dmp=True,
-                 use_authority=True):
+    def __init__(
+        self,
+        in_dim=768,
+        hidden_dim=512,
+        num_layers=2,
+        dropout=0.3,
+        temperature=5.0,
+        use_dmp=True,
+        use_authority=True,
+    ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.use_dmp = use_dmp
         self.use_authority = use_authority
 
         node_types = ["doc", "sec", "conc", "auth", "label"]
-        self.input_proj = nn.ModuleDict({
-            nt: Linear(in_dim, hidden_dim) for nt in node_types
-        })
+        self.input_proj = nn.ModuleDict(
+            {nt: Linear(in_dim, hidden_dim) for nt in node_types}
+        )
 
         if use_authority:
             self.authority_scorer = AuthorityScorer(type_emb_dim=8)
 
         if use_dmp:
-            self.dmp_layers = nn.ModuleList([
-                DMPLayer(hidden_dim, hidden_dim, temperature, dropout)
-                for _ in range(num_layers)
-            ])
+            self.dmp_layers = nn.ModuleList(
+                [
+                    DMPLayer(hidden_dim, hidden_dim, temperature, dropout)
+                    for _ in range(num_layers)
+                ]
+            )
 
         self.hetero_convs = nn.ModuleList()
+        self.hetero_conv_edge_types = []
         for _ in range(num_layers):
             conv_dict = {
                 ("doc", "has_section", "sec"): SAGEConv(hidden_dim, hidden_dim),
                 ("label", "maps_to", "conc"): SAGEConv(hidden_dim, hidden_dim),
                 ("label", "parent_of", "label"): SAGEConv(hidden_dim, hidden_dim),
                 ("sec", "cites", "auth"): SAGEConv(hidden_dim, hidden_dim),
+                ("conc", "mentions_rev", "sec"): SAGEConv(hidden_dim, hidden_dim),
             }
+
             if not use_dmp:
                 conv_dict[("sec", "mentions", "conc")] = SAGEConv(
                     hidden_dim, hidden_dim
                 )
+
+            self.hetero_conv_edge_types.append(set(conv_dict.keys()))
             self.hetero_convs.append(HeteroConv(conv_dict, aggr="sum"))
 
         self.out_proj = Linear(hidden_dim, hidden_dim)
@@ -75,20 +75,6 @@ class JusDef(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x_dict, edge_index_dict, edge_attr_dict=None):
-        """
-        Full forward pass.
-
-        Args:
-            x_dict: {node_type: tensor [N, in_dim]}
-            edge_index_dict: {edge_type: tensor [2, E]}
-            edge_attr_dict: {edge_type: {attr_name: tensor}}
-                            Only needed for r2 edges (operator, priority)
-
-        Returns:
-            h: {node_type: tensor [N, hidden_dim]}
-            defeat_info: dict with active/defeated embeddings (for L_defeat)
-                         None if DMP is disabled or no valid r2 edges exist
-        """
         h = {}
         for nt, x in x_dict.items():
             if nt in self.input_proj:
@@ -100,24 +86,25 @@ class JusDef(nn.Module):
         r2_key = ("sec", "mentions", "conc")
 
         for layer_idx, hetero_conv in enumerate(self.hetero_convs):
+            conv_edge_types = self.hetero_conv_edge_types[layer_idx]
+
             if self.use_dmp:
                 candidate_edges = {
-                    k: v for k, v in edge_index_dict.items()
-                    if k != r2_key and v.size(1) > 0 and k in hetero_conv.convs
+                    k: v
+                    for k, v in edge_index_dict.items()
+                    if k != r2_key and v.size(1) > 0 and k in conv_edge_types
                 }
             else:
                 candidate_edges = {
-                    k: v for k, v in edge_index_dict.items()
-                    if v.size(1) > 0 and k in hetero_conv.convs
+                    k: v
+                    for k, v in edge_index_dict.items()
+                    if v.size(1) > 0 and k in conv_edge_types
                 }
 
             new_h = {}
             if candidate_edges:
                 new_h = hetero_conv(h, candidate_edges)
-                new_h = {
-                    k: self.dropout(F.relu(v))
-                    for k, v in new_h.items()
-                }
+                new_h = {k: self.dropout(F.relu(v)) for k, v in new_h.items()}
 
             for nt in h:
                 if nt not in new_h:
@@ -146,45 +133,31 @@ class JusDef(nn.Module):
 
                     h["conc"] = h["conc"] + dmp_out
 
-                    active, defeated = self.dmp_layers[layer_idx].get_active_defeated_embeddings(
+                    active, defeated = self.dmp_layers[
+                        layer_idx
+                    ].get_active_defeated_embeddings(
                         src_embs, dst_ids, r2_ops, r2_pri, concept_ids
                     )
+
                     defeat_info["active_embs"].append(active)
                     defeat_info["defeated_embs"].append(defeated)
 
-        h = {k: self.out_proj(v) for k, v in h.items()}
+            h = {k: self.out_proj(v) for k, v in h.items()}
 
         if defeat_info["active_embs"]:
             defeat_info["active_embs"] = torch.cat(defeat_info["active_embs"], dim=0)
-            defeat_info["defeated_embs"] = torch.cat(defeat_info["defeated_embs"], dim=0)
+            defeat_info["defeated_embs"] = torch.cat(
+                defeat_info["defeated_embs"], dim=0
+            )
         else:
             defeat_info = None
 
         return h, defeat_info
 
     def pool_document(self, sec_embs):
-        """
-        Attention-weighted pooling of section embeddings -> document embedding.
-
-        Args:
-            sec_embs: tensor [N_sec, hidden_dim]
-
-        Returns:
-            doc_emb: tensor [1, hidden_dim]
-        """
         attn = self.sec_attention(sec_embs)
         weights = torch.softmax(attn, dim=0)
         return (weights * sec_embs).sum(dim=0, keepdim=True)
 
     def score(self, doc_emb, label_embs):
-        """
-        Dot-product logits for multi-label classification.
-
-        Args:
-            doc_emb: tensor [1, hidden_dim]
-            label_embs: tensor [N_labels, hidden_dim]
-
-        Returns:
-            scores: tensor [1, N_labels]
-        """
         return doc_emb @ label_embs.T
