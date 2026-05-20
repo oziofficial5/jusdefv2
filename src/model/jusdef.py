@@ -117,8 +117,18 @@ class JusDef(nn.Module):
                     r2_ops = edge_attr_dict[r2_key]["operator"]
                     r2_pri_raw = edge_attr_dict[r2_key]["priority"]
 
-                    if self.use_authority and "auth" in h:
-                        r2_pri = r2_pri_raw
+                    if (
+                        self.use_authority
+                        and r2_key in edge_attr_dict
+                        and "auth_type" in edge_attr_dict[r2_key]
+                        and "auth_level" in edge_attr_dict[r2_key]
+                        and "auth_recency" in edge_attr_dict[r2_key]
+                    ):
+                        r2_pri = self.authority_scorer(
+                            edge_attr_dict[r2_key]["auth_type"],
+                            edge_attr_dict[r2_key]["auth_level"],
+                            edge_attr_dict[r2_key]["auth_recency"],
+                        )
                     else:
                         r2_pri = r2_pri_raw
 

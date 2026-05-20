@@ -43,6 +43,7 @@ class StraightThroughEstimator(torch.autograd.Function):
 
     Reference: Bengio et al., 2013 (arXiv:1308.3432)
     """
+
     @staticmethod
     def forward(ctx, priority_gap, temperature=5.0):
         ctx.save_for_backward(priority_gap)
@@ -87,18 +88,17 @@ def compute_defeat_mask(operators, priorities, dst_nodes, temperature=5.0):
         return torch.ones(0, device=operators.device)
 
     # Combine into single score: operator dominates via 1000x scaling
-    # (priorities are in [0, 1] range, so 1000x ensures operator always wins)
     defeat_score = operators.float() * 1000.0 + priorities
 
-    # Find max defeat score per concept group
+    # Non-in-place scatter_reduce so autograd tracks gradients properly
     num_groups = dst_nodes.max().item() + 1
-    group_max = torch.full((num_groups,), -1e9, device=operators.device)
-    group_max.scatter_reduce_(0, dst_nodes, defeat_score, reduce="amax")
+    base = torch.full((num_groups,), -1e9, device=operators.device)
+    group_max = base.scatter_reduce(
+        0, dst_nodes, defeat_score, reduce="amax", include_self=True
+    )
 
-    # Gap = group_max - my_score
-    # Positive gap = someone stronger exists = defeated
-    # Zero gap = I am the strongest (or tied) = active
-    # Subtract epsilon so exact ties (equal op AND equal priority) survive
+    # Positive gap = stronger competing message exists -> defeated
+    # Zero/negative gap = strongest or tied -> active
     priority_gap = group_max[dst_nodes] - defeat_score - 0.001
 
     mask = StraightThroughEstimator.apply(priority_gap, temperature)
@@ -115,15 +115,15 @@ class DMPLayer(nn.Module):
     Architecture per layer:
       1. Apply operator-specific weight matrices W_omega to source embeddings
       2. Compute defeat mask via STE (vectorized scatter_reduce)
-      3. Mask out defeated messages
+      3. Soft-mask messages
       4. Attention-weighted aggregation of active messages per concept node
-         (vectorized using scatter_softmax pattern)
 
-    When all operators are AFF and priorities are equal, no defeats occur,
-    and DMP reduces to standard attention aggregation (Proposition 2).
+    When all operators are AFF and priorities are equal, DMP reduces to
+    standard attention aggregation.
 
     Reference: JusDef paper Section 4.3, Equation 2
     """
+
     NUM_OPERATORS = 4
 
     def __init__(self, in_dim=512, out_dim=512, temperature=5.0, dropout=0.3):
@@ -132,16 +132,14 @@ class DMPLayer(nn.Module):
         self.out_dim = out_dim
         self.temperature = temperature
 
-        self.W_op = nn.ModuleList([
-            nn.Linear(in_dim, out_dim, bias=False)
-            for _ in range(self.NUM_OPERATORS)
-        ])
+        self.W_op = nn.ModuleList(
+            [nn.Linear(in_dim, out_dim, bias=False) for _ in range(self.NUM_OPERATORS)]
+        )
 
         self.attn = nn.Linear(out_dim, 1)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, src_embs, dst_node_ids, operators, priorities,
-                concept_ids, num_dst):
+    def forward(self, src_embs, dst_node_ids, operators, priorities, concept_ids, num_dst):
         """
         Fully vectorized forward pass.
 
@@ -162,54 +160,55 @@ class DMPLayer(nn.Module):
         if E == 0:
             return torch.zeros(num_dst, self.out_dim, device=device)
 
-        # Step 1: Operator-specific transforms (vectorized per operator)
+        # Step 1: Operator-specific transforms
         msg = torch.zeros(E, self.out_dim, device=device)
         for op_idx in range(self.NUM_OPERATORS):
             op_mask = (operators == op_idx)
             if op_mask.any():
                 msg[op_mask] = self.W_op[op_idx](src_embs[op_mask])
 
-        # Step 2: Vectorized defeat mask
+        # Step 2: Differentiable defeat mask
         defeat_mask = compute_defeat_mask(
             operators, priorities, concept_ids, self.temperature
         )
 
-        # Step 3: Mask defeated messages
+        # Step 3: Soft-mask messages
         active_msg = msg * defeat_mask.unsqueeze(-1)
 
-        # Step 4: Vectorized attention aggregation per concept node
-        # Compute raw attention scores
-        attn_raw = self.attn(active_msg).squeeze(-1)  # (E,)
+        # Step 4: Attention aggregation with soft defeat weighting
+        # Compute raw attention from original msg to avoid hard gating here
+        attn_raw = self.attn(msg).squeeze(-1)
 
-        # Set defeated messages to -inf so they get zero attention weight
-        attn_raw = attn_raw.masked_fill(defeat_mask < 0.5, -1e9)
-
-        # Scatter softmax: per-group softmax over dst_node_ids
-        # Step 4a: Find max per group for numerical stability
-        attn_max = torch.full((num_dst,), -1e9, device=device)
-        attn_max.scatter_reduce_(0, dst_node_ids, attn_raw, reduce="amax")
+        # Max per group for numerical stability
+        attn_base = torch.full((num_dst,), -1e9, device=device)
+        attn_max = attn_base.scatter_reduce(
+            0, dst_node_ids, attn_raw, reduce="amax", include_self=True
+        )
         attn_stable = attn_raw - attn_max[dst_node_ids]
 
-        # Step 4b: Exp and sum per group
-        attn_exp = torch.exp(attn_stable)
-        attn_exp = attn_exp * (defeat_mask > 0.5).float()  # zero out defeated
+        # Exponentiate and softly weight by defeat_mask
+        attn_exp = torch.exp(attn_stable) * defeat_mask
         attn_sum = torch.zeros(num_dst, device=device)
         attn_sum.scatter_add_(0, dst_node_ids, attn_exp)
         attn_sum = attn_sum.clamp(min=1e-8)
 
-        # Step 4c: Normalize
-        attn_weights = attn_exp / attn_sum[dst_node_ids]  # (E,)
+        # Normalize within destination groups
+        attn_weights = attn_exp / attn_sum[dst_node_ids]
 
-        # Step 4d: Weighted scatter add
-        weighted_msg = active_msg * attn_weights.unsqueeze(-1)  # (E, out_dim)
+        # Weighted aggregation
+        weighted_msg = active_msg * attn_weights.unsqueeze(-1)
         out = torch.zeros(num_dst, self.out_dim, device=device)
-        out.scatter_add_(0, dst_node_ids.unsqueeze(-1).expand(-1, self.out_dim),
-                         weighted_msg)
+        out.scatter_add_(
+            0,
+            dst_node_ids.unsqueeze(-1).expand(-1, self.out_dim),
+            weighted_msg,
+        )
 
         return self.dropout(out)
 
-    def get_active_defeated_embeddings(self, src_embs, dst_node_ids,
-                                       operators, priorities, concept_ids):
+    def get_active_defeated_embeddings(
+        self, src_embs, dst_node_ids, operators, priorities, concept_ids
+    ):
         """
         Helper for L_defeat loss.
 
@@ -219,8 +218,10 @@ class DMPLayer(nn.Module):
         """
         E = src_embs.size(0)
         if E == 0:
-            return (torch.zeros(0, self.out_dim, device=src_embs.device),
-                    torch.zeros(0, self.out_dim, device=src_embs.device))
+            return (
+                torch.zeros(0, self.out_dim, device=src_embs.device),
+                torch.zeros(0, self.out_dim, device=src_embs.device),
+            )
 
         msg = torch.zeros(E, self.out_dim, device=src_embs.device)
         for op_idx in range(self.NUM_OPERATORS):
