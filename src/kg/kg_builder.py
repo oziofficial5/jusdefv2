@@ -20,24 +20,24 @@ def build_document_graph(
     Build a JusDef HeteroData graph for a single document.
 
     doc_struct: one entry from *_processed.pkl:
-      {
+    {
         "doc_id": int,
         "labels": List[int],
         "sections": [
-          {
-            "type": str,
-            "type_int": int,
-            "text": str,
-            "concepts": [
-              {"label_idx": int, "operator": str, ...}
-            ],
-            "authorities": [
-              {"text": str, "type": str, "level": float, "recency": float, ...}
-            ]
-          },
-          ...
+            {
+                "type": str,
+                "type_int": int,
+                "text": str,
+                "concepts": [
+                    {"label_idx": int, "operator": str, ...}
+                ],
+                "authorities": [
+                    {"text": str, "type": str, "level": float, "recency": float, ...}
+                ]
+            },
+            ...
         ]
-      }
+    }
     """
     data = HeteroData()
 
@@ -144,6 +144,7 @@ def build_document_graph(
             local_idx = conc_id_map.get(label_idx)
             if local_idx is None:
                 continue
+
             op_str = c.get("operator", "AFF")
             op_id = OPERATOR_TO_INT.get(op_str, 0)
 
@@ -162,6 +163,17 @@ def build_document_graph(
         data["sec", "mentions", "conc"].priority = torch.tensor(
             r2_pri, dtype=torch.float
         )
+
+        # NEW v2: reverse edge with same operator and priority attributes
+        data["conc", "mentions_rev", "sec"].edge_index = torch.tensor(
+            [r2_dst, r2_src], dtype=torch.long
+        )
+        data["conc", "mentions_rev", "sec"].operator = torch.tensor(
+            r2_ops, dtype=torch.long
+        )
+        data["conc", "mentions_rev", "sec"].priority = torch.tensor(
+            r2_pri, dtype=torch.float
+        )
     else:
         data["sec", "mentions", "conc"].edge_index = torch.zeros(
             (2, 0), dtype=torch.long
@@ -170,6 +182,16 @@ def build_document_graph(
             0, dtype=torch.long
         )
         data["sec", "mentions", "conc"].priority = torch.zeros(
+            0, dtype=torch.float
+        )
+
+        data["conc", "mentions_rev", "sec"].edge_index = torch.zeros(
+            (2, 0), dtype=torch.long
+        )
+        data["conc", "mentions_rev", "sec"].operator = torch.zeros(
+            0, dtype=torch.long
+        )
+        data["conc", "mentions_rev", "sec"].priority = torch.zeros(
             0, dtype=torch.float
         )
 
@@ -210,7 +232,6 @@ def build_document_graph(
         )
 
     # r8: label -> label (EuroVoc hierarchy, placeholder for now)
-    # Will be populated when EuroVoc adjacency matrix is available
     data["label", "parent_of", "label"].edge_index = torch.zeros(
         (2, 0), dtype=torch.long
     )
