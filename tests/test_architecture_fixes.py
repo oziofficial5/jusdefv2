@@ -92,6 +92,37 @@ def test_F1_operators_reach_sections():
     )
 
 
+def test_F1b_operators_reach_predictions():
+    """Operators must change the actual prediction scores, not just intermediate sec embeddings."""
+    from src.model.jusdef import JusDef
+
+    torch.manual_seed(0)
+    model = JusDef(
+        in_dim=768,
+        hidden_dim=512,
+        num_layers=2,
+        use_dmp=True,
+        use_authority=True,
+    ).eval()
+
+    g_orig = _load_one_test_graph()
+    h_orig = _forward(model, g_orig)
+
+    g_rand = _randomize_operators(_load_one_test_graph(), seed=42)
+    h_rand = _forward(model, g_rand)
+
+    with torch.no_grad():
+        doc_orig = model.pool_document(h_orig["sec"])
+        doc_rand = model.pool_document(h_rand["sec"])
+        scores_orig = model.score(doc_orig, h_orig["label"])
+        scores_rand = model.score(doc_rand, h_rand["label"])
+
+    score_diff = (scores_orig - scores_rand).abs().max().item()
+    assert score_diff > 1e-4, (
+        f"Operators do not reach prediction scores (max |Δ|={score_diff:.2e})"
+    )
+
+
 # -----------------------------------------------------------------------------
 # F2: authority scorer must actually receive gradients
 # -----------------------------------------------------------------------------

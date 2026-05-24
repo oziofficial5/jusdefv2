@@ -1,5 +1,7 @@
 """Add synthetic auth_type/auth_level/auth_recency to r2 edges in cached graphs.
-For F2 laptop smoke test only — real features come from kg_builder on Ampere.
+
+For laptop Phase 0 and smoke_v2 only — real features will be produced by
+kg_builder.py on Ampere during full graph construction.
 """
 import torch
 import numpy as np
@@ -7,19 +9,19 @@ from pathlib import Path
 
 PATHS = [
     "data/processed/graphs/test_graphs.pt",
-    # Add these later if you want smoke training:
-    # "data/processed/graphs/train_graphs.pt",
-    # "data/processed/graphs/validation_graphs.pt",
+    "data/processed/graphs/validation_graphs.pt",
+    "data/processed/graphs/train_graphs.pt",
 ]
 
 R2 = ("sec", "mentions", "conc")
 R2_REV = ("conc", "mentions_rev", "sec")
 
-for path in PATHS:
+
+def patch_file(path: str) -> None:
     p = Path(path)
     if not p.exists():
         print(f"SKIP {path} (missing)")
-        continue
+        return
 
     graphs = torch.load(p, map_location="cpu")
     rng = np.random.RandomState(42)
@@ -35,7 +37,6 @@ for path in PATHS:
                 store.auth_level = torch.zeros(0, dtype=torch.float)
                 store.auth_recency = torch.zeros(0, dtype=torch.float)
                 continue
-
             store.auth_type = torch.tensor(
                 rng.randint(0, 6, size=n), dtype=torch.long
             )
@@ -48,3 +49,8 @@ for path in PATHS:
 
     torch.save(graphs, p)
     print(f"PATCHED {path} with synthetic auth features ({len(graphs)} graphs)")
+
+
+if __name__ == "__main__":
+    for path in PATHS:
+        patch_file(path)
