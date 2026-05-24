@@ -29,12 +29,15 @@ def forward_one_graph(model, g, device):
     r2_key = ("sec", "mentions", "conc")
     edge_attr_dict = None
     if r2_key in g.edge_types and g[r2_key].edge_index.size(1) > 0:
-        edge_attr_dict = {
-            r2_key: {
-                "operator": g[r2_key].operator,
-                "priority": g[r2_key].priority,
-            }
+        store = g[r2_key]
+        attrs = {
+            "operator": store.operator,
+            "priority": store.priority,
         }
+        for k in ("auth_type", "auth_level", "auth_recency"):
+            if hasattr(store, k):
+                attrs[k] = getattr(store, k)
+        edge_attr_dict = {r2_key: attrs}
 
     h, defeat_info = model(x_dict, ei_dict, edge_attr_dict)
 
