@@ -60,6 +60,7 @@ class JusDef(nn.Module):
                 ("label", "parent_of", "label"): SAGEConv(hidden_dim, hidden_dim),
                 ("sec", "cites", "auth"): SAGEConv(hidden_dim, hidden_dim),
                 ("conc", "mentions_rev", "sec"): SAGEConv(hidden_dim, hidden_dim),
+                ("conc", "ontology", "conc"): SAGEConv(hidden_dim, hidden_dim),
             }
 
             if not use_dmp:

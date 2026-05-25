@@ -32,6 +32,15 @@ def main():
     else:
         label_embs = label_embs_data
 
+    # Load label adjacency for F3a ontology edges (optional)
+    label_adj_path = proc_dir / "label_adj.pt"
+    if label_adj_path.exists():
+        label_adj = torch.load(label_adj_path, map_location="cpu")
+        print(f"Loaded label adjacency from {label_adj_path} with shape {tuple(label_adj.shape)}")
+    else:
+        label_adj = None
+        print(f"WARNING: {label_adj_path} not found; ontology edges will be empty")
+
     for split in ["train", "validation", "test"]:
         print("=" * 50)
         print(f"Building graphs for split: {split}")
@@ -85,7 +94,13 @@ def main():
             else:
                 sec_embs = None
 
-            g = build_document_graph(doc, doc_emb, sec_embs, label_embs)
+            g = build_document_graph(
+                doc,
+                doc_emb,
+                sec_embs,
+                label_embs,
+                label_adj=label_adj,
+            )
             graphs.append(g)
 
         print("\nFirst 3 graphs:")
