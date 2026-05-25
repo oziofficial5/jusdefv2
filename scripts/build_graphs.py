@@ -25,21 +25,11 @@ def main():
     graph_dir = Path("data/processed/graphs")
     graph_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load label embeddings
     label_embs_data = torch.load(emb_dir / "label_embs.pt", map_location="cpu")
     if isinstance(label_embs_data, dict):
         label_embs = label_embs_data["embeddings"]
     else:
         label_embs = label_embs_data
-
-    # Load label adjacency for F3a ontology edges (optional)
-    label_adj_path = proc_dir / "label_adj.pt"
-    if label_adj_path.exists():
-        label_adj = torch.load(label_adj_path, map_location="cpu")
-        print(f"Loaded label adjacency from {label_adj_path} with shape {tuple(label_adj.shape)}")
-    else:
-        label_adj = None
-        print(f"WARNING: {label_adj_path} not found; ontology edges will be empty")
 
     for split in ["train", "validation", "test"]:
         print("=" * 50)
@@ -57,14 +47,12 @@ def main():
         if args.debug:
             docs = docs[:10]
 
-        # Doc embeddings
         doc_data = torch.load(emb_dir / f"{split}_doc_embs.pt", map_location="cpu")
         if isinstance(doc_data, dict):
             doc_embs = doc_data["embeddings"]
         else:
             doc_embs = doc_data
 
-        # Section embeddings (optional)
         sec_path = emb_dir / f"{split}_section_embs.pt"
         sec_embs_all, sec_doc_indices = None, None
         if sec_path.exists():
@@ -78,13 +66,11 @@ def main():
         for doc in tqdm(docs, desc=split):
             doc_idx = doc["doc_id"]
 
-            # doc embedding
             if doc_idx < doc_embs.size(0):
                 doc_emb = doc_embs[doc_idx]
             else:
                 doc_emb = torch.zeros(label_embs.size(1))
 
-            # section embeddings for this doc
             if sec_embs_all is not None and sec_doc_indices is not None:
                 mask = [j for j, di in enumerate(sec_doc_indices) if di == doc_idx]
                 if mask:
@@ -94,13 +80,7 @@ def main():
             else:
                 sec_embs = None
 
-            g = build_document_graph(
-                doc,
-                doc_emb,
-                sec_embs,
-                label_embs,
-                label_adj=label_adj,
-            )
+            g = build_document_graph(doc, doc_emb, sec_embs, label_embs)
             graphs.append(g)
 
         print("\nFirst 3 graphs:")
