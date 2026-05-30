@@ -25,3 +25,4 @@ data/processed/*.pkl
 python
 test_architecture_fixes
 data/processed/*.pkl
+data/processed/*.pkl
