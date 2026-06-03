@@ -14,60 +14,54 @@ import numpy as np
 import pytest
 import torch
 
-# Make src importable
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+R2_KEY = ("sec", "mentions", "conc")
+GRAPH_PATH = "data/processed/graphs/test_graphs.pt"
 
 
 def _load_one_test_graph():
-    graphs = torch.load("data/processed/graphs/test_graphs.pt", map_location="cpu")
+    graphs = torch.load(GRAPH_PATH, map_location="cpu")
     return graphs[0]
 
 
 def _randomize_operators(g, seed=42):
     """Randomise r2 operators in place."""
-    r2_key = ("sec", "mentions", "conc")
-    if r2_key in g.edge_types:
-        store = g[r2_key]
+    if R2_KEY in g.edge_types:
+        store = g[R2_KEY]
         if hasattr(store, "operator") and store.operator is not None:
             rng = np.random.RandomState(seed)
             n = store.operator.numel()
             store.operator = torch.tensor(
-                rng.randint(0, 4, size=n), dtype=torch.long
+                rng.randint(0, 4, size=n),
+                dtype=torch.long,
+                device=store.operator.device,
             )
     return g
 
 
 def _forward(model, g):
-    r2_key = ("sec", "mentions", "conc")
     x_dict = {nt: g[nt].x for nt in g.node_types}
     ei_dict = {et: g[et].edge_index for et in g.edge_types}
     edge_attr_dict = None
 
-    if r2_key in g.edge_types and g[r2_key].edge_index.size(1) > 0:
-        r2 = g[r2_key]
+    if R2_KEY in g.edge_types and g[R2_KEY].edge_index.size(1) > 0:
+        r2 = g[R2_KEY]
         attrs = {
             "operator": r2.operator,
             "priority": r2.priority,
         }
-        # F2: pass authority features if present
         for k in ("auth_type", "auth_level", "auth_recency"):
             if hasattr(r2, k):
                 attrs[k] = getattr(r2, k)
-        edge_attr_dict = {r2_key: attrs}
+        edge_attr_dict = {R2_KEY: attrs}
 
     h, _ = model(x_dict, ei_dict, edge_attr_dict)
     return h
 
 
-# -----------------------------------------------------------------------------
-# F1: operators must reach section embeddings
-# -----------------------------------------------------------------------------
 def test_F1_operators_reach_sections():
-    """Randomising operators must change section embeddings.
-
-    On v1 (no reverse edge), sec embeddings are operator-blind. This test
-    fails until the reverse mention edge is added.
-    """
+    """Randomising operators must change section embeddings."""
     from src.model.jusdef import JusDef
 
     torch.manual_seed(0)
@@ -93,7 +87,7 @@ def test_F1_operators_reach_sections():
 
 
 def test_F1b_operators_reach_predictions():
-    """Operators must change the actual prediction scores, not just intermediate sec embeddings."""
+    """Operators must change the actual prediction scores."""
     from src.model.jusdef import JusDef
 
     torch.manual_seed(0)
@@ -123,16 +117,8 @@ def test_F1b_operators_reach_predictions():
     )
 
 
-# -----------------------------------------------------------------------------
-# F2: authority scorer must actually receive gradients
-# -----------------------------------------------------------------------------
 def test_F2_authority_scorer_in_gradient_path():
-    """The authority scorer's parameters must receive non-zero gradient.
-
-    On v1, AuthorityScorer is instantiated but never called. Its params
-    have grad=None or grad=0. This test fails until the scorer is wired
-    into the forward pass.
-    """
+    """Authority scorer parameters must receive non-zero gradient."""
     from src.model.jusdef import JusDef
 
     torch.manual_seed(0)
@@ -153,21 +139,16 @@ def test_F2_authority_scorer_in_gradient_path():
     auth_params = list(model.authority_scorer.parameters())
     assert len(auth_params) > 0, "No authority_scorer params found"
 
-    nonzero_grad = False
-    for p in auth_params:
-        if p.grad is not None and p.grad.abs().sum().item() > 0:
-            nonzero_grad = True
-            break
-
+    nonzero_grad = any(
+        p.grad is not None and p.grad.abs().sum().item() > 0
+        for p in auth_params
+    )
     assert nonzero_grad, (
         "Authority scorer params received zero gradient. "
         "F2 fix not applied: wire authority_scorer into forward."
     )
 
 
-# -----------------------------------------------------------------------------
-# F3a: r3 ontology edge should exist
-# -----------------------------------------------------------------------------
 def test_F3a_concept_ontology_edge_present():
     """r3 (conc -> ontology -> conc) should exist in the graph."""
     g = _load_one_test_graph()
@@ -178,9 +159,6 @@ def test_F3a_concept_ontology_edge_present():
     )
 
 
-# -----------------------------------------------------------------------------
-# F3b/F3c deferred for later full graph rebuild
-# -----------------------------------------------------------------------------
 @pytest.mark.xfail(reason="Deferred until full authority graph rebuild on Ampere.")
 def test_F3b_authority_hierarchy_edge_present():
     """r5 (auth -> hierarchy -> auth) should exist in the graph."""
@@ -203,17 +181,14 @@ def test_F3c_authority_concept_edge_present():
     )
 
 
-# -----------------------------------------------------------------------------
-# F5: DMP reduction to R-GCN (sanity check, should always pass)
-# -----------------------------------------------------------------------------
 def test_F5_dmp_reduces_when_all_aff():
     """When all operators are AFF, the defeat mask must be all-1s."""
     from src.model.dmp_layer import compute_defeat_mask
 
     n = 100
-    ops = torch.zeros(n, dtype=torch.long)   # all AFF
-    pri = torch.zeros(n, dtype=torch.float)  # all equal priority
-    dst = torch.zeros(n, dtype=torch.long)   # same concept
+    ops = torch.zeros(n, dtype=torch.long)
+    pri = torch.zeros(n, dtype=torch.float)
+    dst = torch.zeros(n, dtype=torch.long)
     mask = compute_defeat_mask(ops, pri, dst, temperature=5.0)
 
     assert (mask >= 0.99).all(), (
