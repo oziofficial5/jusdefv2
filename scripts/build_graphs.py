@@ -25,11 +25,21 @@ def main():
     graph_dir = Path("data/processed/graphs")
     graph_dir.mkdir(parents=True, exist_ok=True)
 
+    # Load label embeddings
     label_embs_data = torch.load(emb_dir / "label_embs.pt", map_location="cpu")
     if isinstance(label_embs_data, dict):
         label_embs = label_embs_data["embeddings"]
     else:
         label_embs = label_embs_data
+
+    # Load EuroVoc label adjacency for F3a if present
+    label_adj_path = proc_dir / "label_adj.pt"
+    label_adj = None
+    if label_adj_path.exists():
+        label_adj = torch.load(label_adj_path, map_location="cpu")
+        print(f"Loaded label adjacency from {label_adj_path} with shape {tuple(label_adj.shape)}")
+    else:
+        print(f"No label adjacency found at {label_adj_path}; F3a ontology edges will be empty.")
 
     for split in ["train", "validation", "test"]:
         print("=" * 50)
@@ -80,7 +90,7 @@ def main():
             else:
                 sec_embs = None
 
-            g = build_document_graph(doc, doc_emb, sec_embs, label_embs)
+            g = build_document_graph(doc, doc_emb, sec_embs, label_embs, label_adj)
             graphs.append(g)
 
         print("\nFirst 3 graphs:")
