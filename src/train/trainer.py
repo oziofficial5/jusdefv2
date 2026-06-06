@@ -100,26 +100,32 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate(model, graphs, device):
+def evaluate(model, graphs, device, threshold=None):
+    """
+    If `threshold` is None, the function tunes a global threshold on the
+    provided graphs. If `threshold` is a float, it is used as-is.
+
+    Test evaluation MUST pass the threshold returned by val evaluation —
+    re-tuning on test inflates numbers and breaks the train/val/test contract.
+    """
     model.eval()
     all_scores = []
     all_targets = []
 
     for g in graphs:
-        scores, _, _ = forward_one_graph(model, g, device)  # logits [1, 100]
-        all_scores.append(scores.cpu().squeeze(0))          # [100]
-        all_targets.append(g.y.cpu())                       # [100]
+        scores, _, _ = forward_one_graph(model, g, device)
+        all_scores.append(scores.cpu().squeeze(0))
+        all_targets.append(g.y.cpu())
 
-    logits_np = torch.stack(all_scores).numpy()    # [N_docs, 100]
-    targets_np = torch.stack(all_targets).numpy()  # [N_docs, 100]
+    logits_np = torch.stack(all_scores).numpy()
+    targets_np = torch.stack(all_targets).numpy()
 
-    # Numerically stable sigmoid on logits
     logits_clipped = np.clip(logits_np, -40, 40)
     probs_np = 1.0 / (1.0 + np.exp(-logits_clipped))
 
-    # Tune threshold on probabilities
-    best_thresh, _ = tune_threshold(probs_np, targets_np)
-    preds = (probs_np >= best_thresh).astype(int)
+    if threshold is None:
+        threshold, _ = tune_threshold(probs_np, targets_np)
+    preds = (probs_np >= threshold).astype(int)
 
     macro = f1_score(targets_np, preds, average="macro", zero_division=0)
     micro = f1_score(targets_np, preds, average="micro", zero_division=0)
@@ -127,7 +133,7 @@ def evaluate(model, graphs, device):
     return {
         "macro_f1": round(float(macro), 4),
         "micro_f1": round(float(micro), 4),
-        "threshold": round(float(best_thresh), 4),
+        "threshold": round(float(threshold), 4),
     }
 
 
@@ -216,13 +222,18 @@ def train_jusdef(config):
     if checkpoint_path.exists():
         model.load_state_dict(torch.load(checkpoint_path, map_location=device))
 
-    test_metrics = evaluate(model, config["test_graphs"], device)
+    val_metrics = evaluate(model, config["val_graphs"], device)
+    val_threshold = val_metrics["threshold"]
+    test_metrics = evaluate(
+        model, config["test_graphs"], device, threshold=val_threshold
+    )
 
     results = {
         "best_val_macro_f1": round(best_val_f1, 4),
+        "val_macro_f1_at_best": val_metrics["macro_f1"],
+        "val_threshold": val_threshold,
         "test_macro_f1": test_metrics["macro_f1"],
         "test_micro_f1": test_metrics["micro_f1"],
-        "test_threshold": test_metrics["threshold"],
     }
     print(f"  [DEBUG] returning results: {results}")
     return results

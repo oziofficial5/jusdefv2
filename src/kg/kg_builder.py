@@ -50,10 +50,20 @@ def build_document_graph(
     data["doc"].x = doc_emb.unsqueeze(0)  # (1, 768)
 
     # --- SEC nodes ----------------------------------------------------------
-    if section_embs is not None and section_embs.size(0) == n_sec:
-        data["sec"].x = section_embs  # (N_sec, 768)
-    else:
+    if section_embs is None or section_embs.size(0) != n_sec:
+        # Silently broadcasting doc_emb makes all sections identical, which
+        # destroys section-level signal and gives F1 a degenerate test bed.
+        # Track these and let build_graphs decide whether to drop or warn.
+        import sys
+        sys.stderr.write(
+            f"[kg_builder] WARN: section_embs missing or shape mismatch "
+            f"(have {None if section_embs is None else section_embs.size(0)}, "
+            f"expected {n_sec}). Falling back to doc_emb broadcast.\n"
+        )
         data["sec"].x = doc_emb.unsqueeze(0).expand(n_sec, -1).clone()
+        data["sec"]._fallback = True
+    else:
+        data["sec"].x = section_embs  # (N_sec, 768)
 
     sec_types = [sec.get("type_int", 2) for sec in sections]
     data["sec"].type_id = torch.tensor(sec_types, dtype=torch.long)

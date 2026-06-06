@@ -39,11 +39,20 @@ def main():
 
     print(f"  Train: {len(train_graphs)}, Val: {len(val_graphs)}, Test: {len(test_graphs)}")
 
-    label_adj = torch.eye(100)
     adj_path = Path("data/processed/label_adj.pt")
-    if adj_path.exists():
-        label_adj = torch.load(adj_path, map_location="cpu")
-        print(f"  Label adjacency: {label_adj.shape}")
+    if not adj_path.exists():
+        raise FileNotFoundError(
+            f"F3a label_adj missing at {adj_path}. "
+            "Run scripts/build_label_adj.py before training. "
+            "Falling back to identity would silently disable F3a."
+        )
+    label_adj = torch.load(adj_path, map_location="cpu")
+    nnz_off_diag = ((label_adj != 0).sum() - label_adj.shape[0]).item()
+    print(f"  Label adjacency: {label_adj.shape}, off-diag edges: {nnz_off_diag}")
+    if nnz_off_diag == 0:
+        raise ValueError(
+            "label_adj has zero off-diagonal entries — F3a would be inactive."
+        )
 
     tag = args.tag
     ckpt = f"outputs/checkpoints/jusdef_{tag}_s{args.seed}.pt"

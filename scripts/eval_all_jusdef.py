@@ -16,7 +16,8 @@ seen = list(range(80))
 unseen = list(range(80, 100))
 
 test_graphs = torch.load('data/processed/graphs/test_graphs.pt', map_location='cpu')
-print(f'Test graphs: {len(test_graphs)}', flush=True)
+val_graphs = torch.load('data/processed/graphs/validation_graphs.pt', map_location='cpu')
+print(f'Test graphs: {len(test_graphs)}  Val graphs: {len(val_graphs)}', flush=True)
 
 # (tag, hidden_dim, use_dmp, use_authority)
 configs = [
@@ -48,6 +49,20 @@ for tag, hd, dmp, auth in configs:
         print(f'  LOAD ERROR: {e}', flush=True)
         continue
     
+    # Tune threshold on validation set
+    val_logits, val_targets = [], []
+    with torch.no_grad():
+        for g in val_graphs:
+            scores, _, _ = forward_one_graph(model, g, 'cpu')
+            val_logits.append(scores.cpu().view(-1))
+            val_targets.append(g.y.cpu())
+    val_logits = torch.stack(val_logits).numpy()
+    val_targets = torch.stack(val_targets).numpy()
+    val_probs = 1.0 / (1.0 + np.exp(-np.clip(val_logits, -40, 40)))
+    best_t, _ = tune_threshold(val_probs, val_targets)
+    print(f'  val-tuned threshold: {best_t:.4f}', flush=True)
+
+    # Apply frozen threshold to test
     all_logits, all_targets = [], []
     with torch.no_grad():
         for i, g in enumerate(test_graphs):
@@ -56,11 +71,10 @@ for tag, hd, dmp, auth in configs:
             scores, _, _ = forward_one_graph(model, g, 'cpu')
             all_logits.append(scores.cpu().view(-1))
             all_targets.append(g.y.cpu())
-    
+
     logits = torch.stack(all_logits).numpy()
     targets = torch.stack(all_targets).numpy()
     probs = 1.0 / (1.0 + np.exp(-np.clip(logits, -40, 40)))
-    best_t, _ = tune_threshold(probs, targets)
     preds = (probs >= best_t).astype(int)
     
     r = {
