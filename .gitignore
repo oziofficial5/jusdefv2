@@ -1,28 +1,38 @@
-data/raw/
-data/processed/embeddings/
-data/processed/graphs/
-outputs/checkpoints/
-outputs/logs/
-wandb/
+# Python
 __pycache__/
 *.pyc
-*.pt
-*.npy
-*.h5.venv/
-backups/
-data/processed/
 *.swp
 *.save
 .venv/
---hidden_dim
---lambda2
---patience
---seed
---stage1_end
---stage2_end
---tag
+.pytest_cache/
+
+# Data — raw and large processed artifacts (regeneratable)
+data/raw/
+data/processed/embeddings/
+data/processed/graphs/
 data/processed/*.pkl
-python
-test_architecture_fixes
-data/processed/*.pkl
-data/processed/*.pkl
+data/processed/*.pt
+# Keep the EuroVoc-derived label_adj.pt tracked
+!data/processed/label_adj.pt
+
+# EuroVoc raw RDF (58 MB) — re-downloadable from publications.europa.eu
+data/eurovoc/
+
+# Outputs — runtime artifacts
+outputs/checkpoints/
+outputs/logs/
+outputs/sentinels/
+outputs/logs_backup/
+wandb/
+backups/
+
+# Loose dev artifacts that should not have been committed
+1e-4
+labeltest.py
+inspect_eurovoc_*.py
+inspect_label_adj.py
+test.py
+
+# Misc
+*.npy
+*.h5

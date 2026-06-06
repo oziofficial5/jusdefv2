@@ -76,8 +76,12 @@ def train_one_epoch(model, graphs, seen_mask, optimizer, device):
 
 
 @torch.no_grad()
-def evaluate(model, graphs, device):
-    """Evaluate model. Returns Macro-F1, Micro-F1, best threshold."""
+def evaluate(model, graphs, device, threshold=None):
+    """
+    If `threshold` is None, tunes a global threshold on the provided graphs.
+    If `threshold` is a float, applies it as-is. Test eval MUST receive the
+    val-tuned threshold to avoid optimistic bias.
+    """
     model.eval()
     all_logits = []
     all_targets = []
@@ -85,28 +89,27 @@ def evaluate(model, graphs, device):
     for g in graphs:
         g = g.to(device)
         doc_emb, label_embs = get_doc_and_label_embs(model, g, device)
-        logits = model.score(doc_emb, label_embs).squeeze(0)  # [100]
+        logits = model.score(doc_emb, label_embs).squeeze(0)
         all_logits.append(logits.cpu())
         all_targets.append(g.y.cpu())
 
-    logits_np = torch.stack(all_logits).numpy()    # [N_docs, 100]
-    targets_np = torch.stack(all_targets).numpy()  # [N_docs, 100]
+    logits_np = torch.stack(all_logits).numpy()
+    targets_np = torch.stack(all_targets).numpy()
 
-    # Convert logits -> probabilities (numerically stable sigmoid)
     logits_clipped = np.clip(logits_np, -40, 40)
     probs_np = 1.0 / (1.0 + np.exp(-logits_clipped))
 
-    # Tune a single global threshold on probabilities
-    best_thresh, _ = tune_threshold(probs_np, targets_np)
+    if threshold is None:
+        threshold, _ = tune_threshold(probs_np, targets_np)
 
-    preds = (probs_np >= best_thresh).astype(int)
+    preds = (probs_np >= threshold).astype(int)
     macro = f1_score(targets_np, preds, average="macro", zero_division=0)
     micro = f1_score(targets_np, preds, average="micro", zero_division=0)
 
     return {
         "macro_f1": round(float(macro), 4),
         "micro_f1": round(float(micro), 4),
-        "threshold": round(float(best_thresh), 4),
+        "threshold": round(float(threshold), 4),
     }
 
 
@@ -191,18 +194,21 @@ def main():
                 print(f"  Early stopping at epoch {epoch}")
                 break
 
-    # Test
+    # Test — threshold is tuned on val and frozen for test
     print("\nTest evaluation...")
     model.load_state_dict(torch.load(ckpt_path, map_location=device))
-    test_m = evaluate(model, test_graphs, device)
+    val_m = evaluate(model, val_graphs, device)
+    val_threshold = val_m["threshold"]
+    test_m = evaluate(model, test_graphs, device, threshold=val_threshold)
 
     results = {
         "model": "RGCN",
         "seed": args.seed,
         "best_val_macro_f1": round(best_val_f1, 4),
+        "val_macro_f1_at_best": val_m["macro_f1"],
+        "val_threshold": val_threshold,
         "test_macro_f1": test_m["macro_f1"],
         "test_micro_f1": test_m["micro_f1"],
-        "test_threshold": test_m["threshold"],
         "config": {
             "hidden_dim": args.hidden_dim,
             "num_layers": args.num_layers,
