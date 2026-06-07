@@ -57,29 +57,57 @@ The master script `scripts/run_all_ampere.sh` runs:
 | Stage | Script | Purpose | Est. time on A100 | Sentinel |
 |---|---|---|---|---|
 | 0 | (inline) | Environment check (torch/cuda/pyg/transformers/sklearn) | <1 min | — |
-| 1 | `scripts/preprocess_all.py` | Sections + concepts + operators (keyword) + authorities. Reads LexGLUE EUR-Lex, writes `data/processed/{train,validation,test}_processed.pkl` | **6–10 h** | `1.done` |
-| 2 | `scripts/extract_embeddings.py` + `scripts/make_label_embs.py` | LegalBERT doc + section embeddings; label embeddings from EuroVoc names | **8–14 h** | `2.done` |
-| 3 | `scripts/build_label_adj.py` | EuroVoc 2-digit broader-domain adjacency. Outputs `data/processed/label_adj.pt` | <5 min | `3.done` |
-| 4 | `scripts/build_graphs.py` | Assembles HeteroData graphs (one per doc) with all node and edge types | **1–2 h** | `4.done` |
-| 5 | `pytest tests/test_architecture_fixes.py` + `scripts/smoke_test_jusdef.py` | Verify F1/F1b/F2/F3a + 5-epoch sanity on 10 graphs | **5–10 min** | (no sentinel — always runs) |
-| 6 | `scripts/train_rgcn.py` × 3 seeds | R-GCN baseline, seeds 42 43 44 | **3 × 4–6 h ≈ 12–18 h** | `6.done` |
-| 7 | `scripts/train_jusdef.py --tag full` × 3 seeds | JusDef v2 main, seeds 42 43 44 | **3 × 8–12 h ≈ 24–36 h** | `7.done` |
-| 8 | `scripts/train_jusdef.py` × 3 ablations × 3 seeds | `no_dmp`, `no_auth`, `no_dmp_no_auth` | **9 × 8–12 h ≈ 72–108 h** | `8.done` |
-| 9 | `scripts/eval_all_jusdef.py` | Unified eval: macro, micro, seen, unseen, Yexc on all checkpoints. Threshold tuned on val, frozen for test | **2–3 h** | (overwrites each time) |
+| 1 | `scripts/preprocess_all.py` | Sections + concepts + **keyword operators** + authorities → `data/processed/*_processed.pkl` | **6–10 h** | `1.done` |
+| 2 | `scripts/extract_embeddings.py` + `scripts/make_label_embs.py` | LegalBERT doc + section + label embeddings | **8–14 h** | `2.done` |
+| 3 | `scripts/build_label_adj.py` | EuroVoc 2-digit broader-domain adjacency → `data/processed/label_adj.pt` | <5 min | `3.done` |
+| 4 | `scripts/build_graphs.py` | HeteroData graphs with all node/edge types (keyword operators) | **1–2 h** | `4.done` |
+| 5 | `pytest tests/test_architecture_fixes.py` + `scripts/smoke_test_jusdef.py` | Gate: F1/F1b/F2/F3a/F5 + 5-epoch sanity | **5–10 min** | (always runs) |
+| 6 | `scripts/train_rgcn.py` × 3 seeds | R-GCN baseline (h=512), seeds 42 43 44 | **3 × 4–6 h ≈ 12–18 h** | `6.done` |
+| **6.5** | `scripts/train_rgcn.py --hidden_dim 768 --seed 42` | **R-GCN capacity match** at h=768 (control for "is JusDef's gain capacity or architecture?") | **5–6 h** | `6_5.done` |
+| 7 | `scripts/train_jusdef.py --tag full` × 3 seeds | JusDef v2 main (h=512), seeds 42 43 44 | **3 × 8–12 h ≈ 24–36 h** | `7.done` |
+| **7.5** | **Neural operator detector pipeline** | (a) `scripts/train_operator_detector.py` fine-tunes LegalBERT on 3000 annotated sentences. (b) `scripts/relabel_operators_neural.py` re-labels every concept in `*_processed.pkl` using the neural detector, writes to `data/processed_neural/`. (c) `scripts/build_graphs.py --input_dir data/processed_neural/ --output_dir data/processed_neural/graphs/` rebuilds graphs (reuses Stage 2 embeddings). (d) `scripts/train_jusdef.py --tag full_neural --graph_dir data/processed_neural/graphs/` trains JusDef on neural-operator graphs. | **~3 days total** (1d detector training + 1d rebuild + 1d JusDef seed 42) | `7_5.done` |
+| 8 | `scripts/train_jusdef.py` × 3 ablations × 3 seeds | `no_dmp`, `no_auth`, `no_dmp_no_auth` (all on keyword graphs) | **9 × 8–12 h ≈ 72–108 h** | `8.done` |
+| 9 | `scripts/eval_all_jusdef.py` | Unified eval across keyword + neural graphs; val-tuned τ frozen for test | **2–3 h** | (always runs) |
 
-**Total estimate**: ~5–8 days on a single A100. Comfortable within your 2-week booking.
+**Total estimate with all stages**: ~10–13 days. **Inside your 16-day Ampere budget with 3–6 day buffer.**
+
+### Stage 7.5 — what the neural detector experiment actually measures
+
+This is the **decisive experiment** for Chapter 1's central claim. It compares:
+
+- **JusDef v2 + keyword operators** (~5.5% non-AFF density, low-defeat regime)
+- **JusDef v2 + neural operators** (expected ~30%+ non-AFF density, useful-defeat regime)
+
+If the neural-detector run produces meaningfully higher Yexc macro-F1 than the keyword run, the thesis claim "operator-density bottleneck limits architectural benefit" is supported. If not, the chapter falsifies that explanation and points to alternative explanations.
+
+To run more than one neural seed (recommended if Stage 8 finishes early):
+
+```bash
+JUSDEF_NEURAL_SEEDS="42 43 44" sbatch run_all_ampere.slurm
+# or, on the cluster, edit run_all_ampere.sh and change the default.
+```
 
 ---
 
-## 3. If you only have time for one pass
+## 3. Priority order if time runs short
 
-If your 2 weeks shrink, drop ablations first (Stage 8). The thesis story is built on Stages 1-7 + 9. Ablations are nice-to-have for the appendix.
+If your 16 days shrink, drop in this order:
 
-To skip Stage 8: `touch outputs/sentinels/8.done` before submitting.
+1. **First drop**: Stage 8 ablations (saves 3–4 days). Cost: ablation tables in appendix become "deferred to follow-up". Headline story is still intact.
+2. **Second drop**: Stage 6.5 capacity match (saves 5–6 h). Cost: weaker control for the v2-vs-R-GCN comparison.
+3. **Never drop**: Stages 1–7 + 7.5 + 9. These give you both the architectural-replication story AND the neural-detector decisive experiment.
 
-To run only the eval (after Stages 1-7 complete): `touch outputs/sentinels/{1,2,3,4,6,7,8}.done` then run Stage 9 manually:
+To skip a stage, touch its sentinel before submitting:
 
 ```bash
+touch outputs/sentinels/8.done       # skip ablations
+touch outputs/sentinels/6_5.done     # skip capacity match
+```
+
+To run only the eval (after training stages complete):
+
+```bash
+touch outputs/sentinels/{1,2,3,4,6,6_5,7,7_5,8}.done
 python scripts/eval_all_jusdef.py 2>&1 | tee outputs/logs/eval_only.log
 ```
 

@@ -15,31 +15,68 @@ exc_idx = exc_data['exception_override_labels']
 seen = list(range(80))
 unseen = list(range(80, 100))
 
-test_graphs = torch.load('data/processed/graphs/test_graphs.pt', map_location='cpu')
-val_graphs = torch.load('data/processed/graphs/validation_graphs.pt', map_location='cpu')
-print(f'Test graphs: {len(test_graphs)}  Val graphs: {len(val_graphs)}', flush=True)
+# Keyword-operator graphs (default split)
+test_graphs_kw = torch.load('data/processed/graphs/test_graphs.pt', map_location='cpu')
+val_graphs_kw = torch.load('data/processed/graphs/validation_graphs.pt', map_location='cpu')
+print(f'Keyword graphs — Test: {len(test_graphs_kw)}  Val: {len(val_graphs_kw)}', flush=True)
 
-# (tag, hidden_dim, use_dmp, use_authority)
+# Neural-operator graphs (if Stage 7.5 has run)
+neural_graph_dir = 'data/processed_neural/graphs'
+test_graphs_neural = None
+val_graphs_neural = None
+if os.path.exists(f'{neural_graph_dir}/test_graphs.pt'):
+    test_graphs_neural = torch.load(f'{neural_graph_dir}/test_graphs.pt', map_location='cpu')
+    val_graphs_neural = torch.load(f'{neural_graph_dir}/validation_graphs.pt', map_location='cpu')
+    print(f'Neural graphs  — Test: {len(test_graphs_neural)}  Val: {len(val_graphs_neural)}', flush=True)
+else:
+    print('Neural graphs not found at', neural_graph_dir, '(Stage 7.5 not run yet)', flush=True)
+
+# (tag, hidden_dim, use_dmp, use_authority, graph_source)
+# graph_source: "kw" = keyword operators, "neural" = neural detector operators
 configs = [
-    ('full_s42',            512, True,  True),
-    ('full_s43',            512, True,  True),
-    ('full_s44',            512, True,  True),
-    ('full_v2_s42',         512, True,  True),
-    ('h768_lowdef_s42',     768, True,  True),
-    ('h768_lowdef_s43',     768, True,  True),
-    ('no_dmp_s42',          512, False, True),
-    ('no_auth_s42',         512, True,  False),
-    ('no_dmp_no_auth_s42',  512, False, False),
+    # Main JusDef on keyword operators
+    ('full_s42',            512, True,  True,  'kw'),
+    ('full_s43',            512, True,  True,  'kw'),
+    ('full_s44',            512, True,  True,  'kw'),
+    # Ablations on keyword operators
+    ('no_dmp_s42',          512, False, True,  'kw'),
+    ('no_dmp_s43',          512, False, True,  'kw'),
+    ('no_dmp_s44',          512, False, True,  'kw'),
+    ('no_auth_s42',         512, True,  False, 'kw'),
+    ('no_auth_s43',         512, True,  False, 'kw'),
+    ('no_auth_s44',         512, True,  False, 'kw'),
+    ('no_dmp_no_auth_s42',  512, False, False, 'kw'),
+    ('no_dmp_no_auth_s43',  512, False, False, 'kw'),
+    ('no_dmp_no_auth_s44',  512, False, False, 'kw'),
+    # JusDef on neural-detector operators (Stage 7.5)
+    ('full_neural_s42',     512, True,  True,  'neural'),
+    ('full_neural_s43',     512, True,  True,  'neural'),
+    ('full_neural_s44',     512, True,  True,  'neural'),
+    # Historical configs (may exist from earlier runs)
+    ('full_v2_s42',         512, True,  True,  'kw'),
+    ('h768_lowdef_s42',     768, True,  True,  'kw'),
+    ('h768_lowdef_s43',     768, True,  True,  'kw'),
 ]
 
 results = {}
-for tag, hd, dmp, auth in configs:
+for tag, hd, dmp, auth, src in configs:
     ckpt = f'outputs/checkpoints/jusdef_{tag}.pt'
     if not os.path.exists(ckpt):
         print(f'SKIP {tag}: no checkpoint', flush=True)
         continue
-    
-    print(f'\n{tag} (h={hd}, dmp={dmp}, auth={auth})', flush=True)
+
+    # Select graphs: keyword or neural
+    if src == 'neural':
+        if test_graphs_neural is None:
+            print(f'SKIP {tag}: neural graphs missing', flush=True)
+            continue
+        val_graphs = val_graphs_neural
+        test_graphs = test_graphs_neural
+    else:
+        val_graphs = val_graphs_kw
+        test_graphs = test_graphs_kw
+
+    print(f'\n{tag} (h={hd}, dmp={dmp}, auth={auth}, graphs={src})', flush=True)
     try:
         model = JusDef(in_dim=768, hidden_dim=hd, num_layers=2,
                        use_dmp=dmp, use_authority=auth)
@@ -48,7 +85,7 @@ for tag, hd, dmp, auth in configs:
     except Exception as e:
         print(f'  LOAD ERROR: {e}', flush=True)
         continue
-    
+
     # Tune threshold on validation set
     val_logits, val_targets = [], []
     with torch.no_grad():
