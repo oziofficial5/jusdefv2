@@ -18,11 +18,27 @@ from src.kg.graph_utils import validate_graph, print_graph_stats
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--debug", action="store_true", help="Use small subset of docs")
+    parser.add_argument(
+        "--input_dir", default="data/processed",
+        help="Directory containing {train,validation,test}_processed.pkl",
+    )
+    parser.add_argument(
+        "--output_dir", default="data/processed/graphs",
+        help="Directory to write {train,validation,test}_graphs.pt into",
+    )
+    parser.add_argument(
+        "--emb_dir", default="data/processed/embeddings",
+        help="Directory containing precomputed embeddings (shared across pipelines)",
+    )
+    parser.add_argument(
+        "--label_adj_path", default="data/processed/label_adj.pt",
+        help="Path to EuroVoc label adjacency tensor",
+    )
     args = parser.parse_args()
 
-    emb_dir = Path("data/processed/embeddings")
-    proc_dir = Path("data/processed")
-    graph_dir = Path("data/processed/graphs")
+    emb_dir = Path(args.emb_dir)
+    proc_dir = Path(args.input_dir)
+    graph_dir = Path(args.output_dir)
     graph_dir.mkdir(parents=True, exist_ok=True)
 
     # Load label embeddings
@@ -33,7 +49,7 @@ def main():
         label_embs = label_embs_data
 
     # Load EuroVoc label adjacency for F3a if present
-    label_adj_path = proc_dir / "label_adj.pt"
+    label_adj_path = Path(args.label_adj_path)
     label_adj = None
     if label_adj_path.exists():
         label_adj = torch.load(label_adj_path, map_location="cpu")

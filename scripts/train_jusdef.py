@@ -25,10 +25,14 @@ def main():
     parser.add_argument("--no_authority", action="store_true")
     parser.add_argument("--tag", type=str, default="full")
     parser.add_argument("--max_train", type=int, default=0)
+    parser.add_argument(
+        "--graph_dir", type=str, default="data/processed/graphs",
+        help="Directory containing {train,validation,test}_graphs.pt",
+    )
     args = parser.parse_args()
 
-    print(f"Loading graphs...")
-    graph_dir = Path("data/processed/graphs")
+    print(f"Loading graphs from {args.graph_dir}...")
+    graph_dir = Path(args.graph_dir)
     train_graphs = torch.load(graph_dir / "train_graphs.pt", map_location="cpu")
     val_graphs = torch.load(graph_dir / "validation_graphs.pt", map_location="cpu")
     test_graphs = torch.load(graph_dir / "test_graphs.pt", map_location="cpu")
