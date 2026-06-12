@@ -81,13 +81,28 @@ class OperatorClassifier(nn.Module):
 
 
 def load_annotations(path):
+    """
+    operator_labels_3000.jsonl format:
+        {"text": "...", "label": <int 0..3>, "label_name": "AFF"|"NEG"|"EXC"|"OVR", ...}
+
+    Older annotation files used "sentence" / "ai_label" / "operator" field names;
+    we accept those as fallback so the same script handles every variant.
+    """
     sents, labels = [], []
     skipped = 0
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
             d = json.loads(line)
-            text = d.get("sentence") or d.get("text") or ""
-            lab = d.get("label") or d.get("ai_label") or d.get("operator")
+            text = d.get("text") or d.get("sentence") or ""
+
+            # Prefer the canonical string label_name; fall back to other string
+            # fields; finally fall back to the integer label if present.
+            lab = d.get("label_name") or d.get("ai_label") or d.get("operator")
+            if lab is None:
+                num = d.get("label")
+                if isinstance(num, int) and 0 <= num < 4:
+                    lab = INT_TO_LABEL[num]
+
             if not text or lab not in LABEL_TO_INT:
                 skipped += 1
                 continue
