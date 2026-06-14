@@ -2,8 +2,12 @@
 
 **Author**: Awais Abdul Khaliq (PhD, Università degli Studi di Milano)
 **Supervisors**: Prof. Stefano Montanelli, Prof. Alfio Ferrara
-**Last updated**: June 2026
+**Last updated**: 14 June 2026 (post-ECtHR density measurement, post-v3-implementation)
 **Repository**: github.com/oziofficial5/jusdefv2
+
+**Branches**:
+- `thesis-main`: stable v2 + diagnostic + corpus + neural-detector pipeline
+- `jusdef-v3`: v3 signal-preserving architecture (this thesis's central architectural contribution)
 
 This document is the single context document for the JusDef project. It explains what the project is, why it exists, what has been built, what has been found, where the current architecture works and where it does not, and what the planned next step is. It is intended for a reader (examiner, collaborator, future self) who has not seen the code before.
 
@@ -406,18 +410,58 @@ Google Scholar: https://scholar.google.com/citations?user=OaQs2-MAAAAJ&hl=en
 
 ---
 
-## 16. Status as of this document
+## 16. Status as of this document (14 June 2026)
 
 - ✅ JusDef v1 submitted to ANNPR 2026
 - ✅ v2 architectural corrections (F1, F2, F3a) committed and verified
 - ✅ Threshold protocol corrected and validated against v1 paper's R-GCN baseline
 - ✅ 3000-sentence annotation dataset built and validated (self κ=0.79, supervisor κ=0.77)
 - ✅ Neural operator detector trained (val macro-F1 = 0.977)
-- ✅ Neural-detector relabeling completed; 0.71% non-AFF density measured
-- 🟡 Stage 7.5d JusDef-neural training in progress (seed 42 at epoch ~35)
-- ⏳ cDMP design specified; implementation pending
-- ⏳ Chapter 4 (framework) and Chapter 5 (experiments) writing pending final results
+- ✅ Neural-detector relabeling on EUR-Lex: 0.71% non-AFF density measured
+- ✅ R-GCN baseline replicated: mean test_macro = 0.2731 ± 0.0066 (3 seeds)
+- ✅ JusDef v2 keyword baseline: mean test_macro = 0.1822 ± 0.0133 (3 seeds)
+- ✅ JusDef v2 neural baseline: mean test_macro ≈ 0.18 (3 seeds completed Stage 7.5)
+- ✅ **ECtHR density measurement (AUEB-NLP/ecthr_cases, 200 cases, neural detector)**:
+  - All paragraphs: 0.52% non-AFF
+  - Silver-rationale paragraphs: 0.58% non-AFF
+  - **Both below EUR-Lex's 0.71%** — the case-law-is-denser hypothesis is FALSIFIED for this dataset; density-floor is a corpus-intrinsic finding
+- ✅ **v3 architecture (signal-preserving) implemented on branch `jusdef-v3`**:
+  - Single shared W_shared (addresses W-undertraining)
+  - Soft sigmoid attention (addresses STE bias)
+  - Per-operator signed coefficient + drift regulariser (addresses sign cancellation)
+  - Operator-conditioned attention MLP (HAN/HGT-style)
+  - All architecture tests pass: 9 passed, 2 xfailed (F3b, F3c deferred)
+- ✅ Thesis outline finalised (`notes/thesis_outline.md`)
+- 🟡 Stage 8 keyword ablations in progress (no_dmp seed 42 epoch 2 as of last update)
+- ⏳ v3 pilot pending (`scripts/run_pilot_v3.sh` ready)
+- ⏳ Chapters 1, 4, 5, 6, 7 writing pending (Chapter 3 partially drafted)
+
+## 17. The thesis framing (final, post-ECtHR measurement)
+
+The thesis is now framed around **four primary contributions**:
+
+1. **Methodological — Diagnostic framework** (C1)
+   The hypothesis-falsification methodology applied to v2's underperformance, falsifying capacity, threshold, and density bottleneck hypotheses through controlled experiments. Reusable for future defeasibility-aware GNN work.
+
+2. **Methodological — Y_exc evaluation protocol** (C2)
+   Defeasibility-stratified subset evaluation; no published precedent for legal multi-label classification.
+
+3. **Empirical — Two-corpus density measurement** (C3)
+   First systematic measurement of explicit operator density in legal NLP. EUR-Lex 0.71% + ECtHR 0.52-0.58%, both below the architectural floor required for hard-defeat DMP to provide measurable benefit. Generalises the negative result from one dataset to a domain-level finding.
+
+4. **Resource — 3000-sentence annotated corpus + neural detector** (C4 + C5)
+   Operator-annotated dataset with expert IAA (κ = 0.77 supervisor), trained LegalBERT detector at val_macro_F1 = 0.977, density-calibration infrastructure released publicly.
+
+Secondary contributions:
+
+5. **Architectural — v3 signal-preserving aggregation** (C6)
+   Single layer class (`src/model/v3_layer.py`) that replaces hard-defeat DMP with soft attention + signed coefficients + drift regulariser + shared transform. Each modification cites a specific prior failure mode (STE bias, signed-GNN sign cancellation, W-undertraining).
+
+6. **Theoretical — Propositions 2, 3, 4** (C7)
+   v3 strictly generalises R-GCN (Prop 2, performance floor) and recovers hard DMP as a limit case (Prop 3). Strict generalisation property (Prop 4).
+
+The empirical target is **Y_exc-specific gain + overall macro-F1 recovery to R-GCN baseline**, NOT macro-F1 SOTA. Transformer baselines on EUR-Lex (LegalBERT ≈ 0.57 macro-F1) are out of scope for graph-only architectures.
 
 ---
 
-*This document is the entry point. Code starts at `scripts/run_all_ampere.sh`. Theory starts at `Chapter 3` of the thesis. Diagnostic history is in `notes/methodology.md`. Annotation provenance is in `data/annotations/`.*
+*This document is the entry point. Code starts at `scripts/run_all_ampere.sh` (v2 pipeline) or `scripts/run_pilot_v3.sh` (v3 pilot). Theory starts at `Chapter 3` of the thesis. Diagnostic history is in `notes/methodology.md`. Thesis structure is in `notes/thesis_outline.md`. Annotation provenance is in `data/annotations/`.*

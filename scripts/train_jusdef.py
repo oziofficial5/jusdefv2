@@ -29,6 +29,11 @@ def main():
         "--graph_dir", type=str, default="data/processed/graphs",
         help="Directory containing {train,validation,test}_graphs.pt",
     )
+    parser.add_argument(
+        "--dmp_variant", type=str, default="hard",
+        choices=["hard", "v3"],
+        help="Defeat aggregator variant: 'hard' = v2 DMP, 'v3' = signal-preserving",
+    )
     args = parser.parse_args()
 
     print(f"Loading graphs from {args.graph_dir}...")
@@ -76,6 +81,7 @@ def main():
         "stage2_end": args.stage2_end,
         "use_dmp": not args.no_dmp,
         "use_authority": not args.no_authority,
+        "dmp_variant": args.dmp_variant,
         "train_graphs": train_graphs,
         "val_graphs": val_graphs,
         "test_graphs": test_graphs,
