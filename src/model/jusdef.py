@@ -17,6 +17,7 @@ from torch_geometric.nn import HeteroConv, SAGEConv, Linear
 
 from src.model.authority_scorer import AuthorityScorer
 from src.model.dmp_layer import DMPLayer
+from src.model.v3_layer import V3Layer
 
 
 class JusDef(nn.Module):
@@ -29,11 +30,13 @@ class JusDef(nn.Module):
         temperature=5.0,
         use_dmp=True,
         use_authority=True,
+        dmp_variant="hard",  # "hard" = v2 DMPLayer, "v3" = signal-preserving V3Layer
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.use_dmp = use_dmp
         self.use_authority = use_authority
+        self.dmp_variant = dmp_variant
 
         node_types = ["doc", "sec", "conc", "auth", "label"]
         self.input_proj = nn.ModuleDict(
@@ -44,12 +47,20 @@ class JusDef(nn.Module):
             self.authority_scorer = AuthorityScorer(type_emb_dim=8)
 
         if use_dmp:
-            self.dmp_layers = nn.ModuleList(
-                [
-                    DMPLayer(hidden_dim, hidden_dim, temperature, dropout)
-                    for _ in range(num_layers)
-                ]
-            )
+            if dmp_variant == "v3":
+                self.dmp_layers = nn.ModuleList(
+                    [
+                        V3Layer(hidden_dim, hidden_dim, dropout=dropout)
+                        for _ in range(num_layers)
+                    ]
+                )
+            else:
+                self.dmp_layers = nn.ModuleList(
+                    [
+                        DMPLayer(hidden_dim, hidden_dim, temperature, dropout)
+                        for _ in range(num_layers)
+                    ]
+                )
 
         self.hetero_convs = nn.ModuleList()
         self.hetero_conv_edge_types = []
@@ -138,17 +149,32 @@ class JusDef(nn.Module):
                     concept_ids = dst_ids
                     num_conc = h["conc"].size(0)
 
-                    dmp_out = self.dmp_layers[layer_idx](
-                        src_embs, dst_ids, r2_ops, r2_pri, concept_ids, num_conc
-                    )
-
-                    h["conc"] = h["conc"] + dmp_out
-
-                    active, defeated = self.dmp_layers[
-                        layer_idx
-                    ].get_active_defeated_embeddings(
-                        src_embs, dst_ids, r2_ops, r2_pri, concept_ids
-                    )
+                    if self.dmp_variant == "v3":
+                        # V3 needs current dst embeddings + auth_type integers
+                        auth_type_int = edge_attr_dict[r2_key].get(
+                            "auth_type", torch.zeros_like(r2_ops)
+                        )
+                        dmp_out = self.dmp_layers[layer_idx](
+                            src_embs, h["conc"], dst_ids, r2_ops,
+                            auth_type_int, num_conc,
+                        )
+                        h["conc"] = h["conc"] + dmp_out
+                        active, defeated = self.dmp_layers[
+                            layer_idx
+                        ].get_active_defeated_embeddings(
+                            src_embs, dst_ids, r2_ops, auth_type_int, num_conc
+                        )
+                    else:
+                        dmp_out = self.dmp_layers[layer_idx](
+                            src_embs, dst_ids, r2_ops, r2_pri,
+                            concept_ids, num_conc,
+                        )
+                        h["conc"] = h["conc"] + dmp_out
+                        active, defeated = self.dmp_layers[
+                            layer_idx
+                        ].get_active_defeated_embeddings(
+                            src_embs, dst_ids, r2_ops, r2_pri, concept_ids
+                        )
 
                     defeat_info["active_embs"].append(active)
                     defeat_info["defeated_embs"].append(defeated)
@@ -172,3 +198,10 @@ class JusDef(nn.Module):
 
     def score(self, doc_emb, label_embs):
         return doc_emb @ label_embs.T
+
+    def v3_coef_regulariser(self):
+        """Sum of per-layer signed-coefficient drift regularisers (v3 only)."""
+        if not self.use_dmp or self.dmp_variant != "v3":
+            return None
+        total = sum(layer.coef_regulariser() for layer in self.dmp_layers)
+        return total

@@ -89,6 +89,11 @@ def train_one_epoch(
             stage=stage,
         )
 
+        # v3 sign-cancellation regulariser (zero-op for non-v3 variants)
+        v3_reg = model.v3_coef_regulariser() if hasattr(model, "v3_coef_regulariser") else None
+        if v3_reg is not None:
+            loss = loss + v3_reg
+
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
@@ -153,6 +158,7 @@ def train_jusdef(config):
         temperature=config.get("temperature", 5.0),
         use_dmp=config.get("use_dmp", True),
         use_authority=config.get("use_authority", True),
+        dmp_variant=config.get("dmp_variant", "hard"),
     ).to(device)
     print(f"  Model params: {sum(p.numel() for p in model.parameters()):,}")
 

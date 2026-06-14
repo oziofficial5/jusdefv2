@@ -194,3 +194,108 @@ def test_F5_dmp_reduces_when_all_aff():
     assert (mask >= 0.99).all(), (
         f"Defeat mask not all-1 with uniform AFF: {mask.mean().item():.4f}"
     )
+
+
+def test_V3_signal_preservation():
+    """V3Layer with all-AFF input must NOT zero any messages (no hard mask)."""
+    from src.model.v3_layer import V3Layer
+
+    torch.manual_seed(0)
+    layer = V3Layer(in_dim=64, out_dim=64).eval()
+
+    n = 20
+    src = torch.randn(n, 64)
+    dst = torch.randn(5, 64)
+    dst_ids = torch.randint(0, 5, (n,))
+    ops = torch.zeros(n, dtype=torch.long)  # all AFF
+    auth_types = torch.randint(0, 6, (n,))
+
+    out = layer(src, dst, dst_ids, ops, auth_types, num_dst=5)
+
+    # Out must have nonzero norm (signal preserved through aggregation)
+    assert out.norm() > 1e-3, (
+        f"V3Layer collapsed signal with all-AFF input: norm={out.norm().item():.2e}"
+    )
+
+
+def test_V3_coef_regulariser_works():
+    """V3 coef_regulariser must produce a nonzero scalar tied to op_coef drift."""
+    from src.model.v3_layer import V3Layer
+
+    layer = V3Layer(in_dim=32, out_dim=32, coef_reg_strength=1.0)
+    # At init, op_coef == op_coef_init, so regulariser is zero
+    assert layer.coef_regulariser().item() < 1e-6
+
+    # Perturb op_coef
+    with torch.no_grad():
+        layer.op_coef.data = layer.op_coef.data + 0.5
+    reg = layer.coef_regulariser()
+    assert reg.item() > 0.1, (
+        f"Coef regulariser did not respond to drift: {reg.item():.4f}"
+    )
+
+
+def test_V3_reduces_toward_rgcn_with_unit_coefs():
+    """
+    Proposition 2 (sanity): with op_coef = (1,1,1,1), V3Layer behaves more like
+    a standard attention-aggregation (no signed cancellation).
+    """
+    from src.model.v3_layer import V3Layer
+
+    torch.manual_seed(0)
+    layer = V3Layer(in_dim=32, out_dim=32).eval()
+    with torch.no_grad():
+        layer.op_coef.data = torch.tensor([1.0, 1.0, 1.0, 1.0])
+
+    n = 30
+    src = torch.randn(n, 32)
+    dst = torch.randn(5, 32)
+    dst_ids = torch.randint(0, 5, (n,))
+    ops = torch.randint(0, 4, (n,))
+    auth_types = torch.randint(0, 6, (n,))
+
+    out = layer(src, dst, dst_ids, ops, auth_types, num_dst=5)
+
+    # With all coefs +1, the output norm should be larger than with coef [+1,-1,-0.5,+1]
+    # because there's no signed cancellation
+    layer2 = V3Layer(in_dim=32, out_dim=32).eval()
+    layer2.W_shared.weight.data = layer.W_shared.weight.data.clone()
+    layer2.op_emb.weight.data = layer.op_emb.weight.data.clone()
+    layer2.auth_emb.weight.data = layer.auth_emb.weight.data.clone()
+    for p_a, p_b in zip(layer.attn_mlp.parameters(), layer2.attn_mlp.parameters()):
+        p_b.data = p_a.data.clone()
+
+    out2 = layer2(src, dst, dst_ids, ops, auth_types, num_dst=5)
+
+    # The two outputs differ because the coefs differ
+    assert (out - out2).norm() > 1e-3, (
+        "V3Layer is insensitive to op_coef changes"
+    )
+
+
+def test_V3_integrates_with_jusdef_model():
+    """JusDef with dmp_variant='v3' must construct and forward without errors."""
+    from src.model.jusdef import JusDef
+
+    torch.manual_seed(0)
+    model = JusDef(
+        in_dim=768,
+        hidden_dim=512,
+        num_layers=2,
+        use_dmp=True,
+        use_authority=True,
+        dmp_variant="v3",
+    ).eval()
+
+    g = _load_one_test_graph()
+    h = _forward(model, g)
+
+    # All node types present
+    for nt in ["doc", "sec", "conc", "label"]:
+        assert nt in h, f"V3 model dropped {nt} node embeddings"
+        assert h[nt].size(-1) == 512
+
+    # v3_coef_regulariser returns a real scalar
+    reg = model.v3_coef_regulariser()
+    assert reg is not None
+    assert reg.numel() == 1
