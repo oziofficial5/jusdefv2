@@ -411,7 +411,25 @@ Google Scholar: https://scholar.google.com/citations?user=OaQs2-MAAAAJ&hl=en
 
 ---
 
-## 16. Status as of this document (14 June 2026)
+## 16. Status as of this document (15 June 2026)
+
+### THE FINAL EMPIRICAL FINDING
+
+Multi-seed (42, 43, 44) density-stratified evaluation on LEDGAR contract clauses
+identifies a narrow but robust operator-density operating regime where v3 provides
+measurable benefit:
+
+| Density bin | mean baseline | v3 | Δ (3-seed mean) |
+|---|---|---|---|
+| All paragraphs | 0.7085 ± 0.0036 | 0.6881 ± 0.0110 | −0.0204 |
+| **10-20% non-AFF** | **0.6193 ± 0.0262** | **0.6722 ± 0.0103** | **+0.0528** |
+| ≥20% non-AFF | 0.7066 ± 0.0017 | 0.6871 ± 0.0100 | −0.0194 |
+
+All 3 seeds positive on the 10-20% bin (+0.0682, +0.0199, +0.0704).
+This is the empirically-identified operating regime — the thesis's central
+positive empirical contribution (C8).
+
+### Status snapshot
 
 - ✅ JusDef v1 submitted to ANNPR 2026
 - ✅ v2 architectural corrections (F1, F2, F3a) committed and verified
