@@ -7,7 +7,8 @@
 
 **Branches**:
 - `thesis-main`: stable v2 + diagnostic + corpus + neural-detector pipeline
-- `jusdef-v3`: v3 signal-preserving architecture (this thesis's central architectural contribution)
+- `jusdef-v3`: v3 signal-preserving architecture (EUR-Lex evaluation)
+- `jusdef-ledgar`: v3 applied to LEDGAR contract clauses (the **denser-corpus pivot**, 20.03% non-AFF density vs EUR-Lex's 0.71%)
 
 This document is the single context document for the JusDef project. It explains what the project is, why it exists, what has been built, what has been found, where the current architecture works and where it does not, and what the planned next step is. It is intended for a reader (examiner, collaborator, future self) who has not seen the code before.
 
