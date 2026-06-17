@@ -2,485 +2,214 @@
 
 **Author**: Awais Abdul Khaliq (PhD, Università degli Studi di Milano)
 **Supervisors**: Prof. Stefano Montanelli, Prof. Alfio Ferrara
-**Last updated**: 14 June 2026 (post-ECtHR density measurement, post-v3-implementation)
+**Last updated**: 17 June 2026 (post-thesis-first-draft)
 **Repository**: github.com/oziofficial5/jusdefv2
 
 **Branches**:
-- `thesis-main`: stable v2 + diagnostic + corpus + neural-detector pipeline
-- `jusdef-v3`: v3 signal-preserving architecture (EUR-Lex evaluation)
-- `jusdef-ledgar`: v3 applied to LEDGAR contract clauses (the **denser-corpus pivot**, 20.03% non-AFF density vs EUR-Lex's 0.71%)
+- `thesis-main`: stable v2 + diagnostic + corpus + neural-detector pipeline (EUR-Lex)
+- `jusdef-v3`: v3 signal-preserving architecture (EUR-Lex three-seed evaluation)
+- `jusdef-ledgar`: v3 applied to LEDGAR contract clauses (where the architecture wins on a narrow operating regime)
 
-This document is the single context document for the JusDef project. It explains what the project is, why it exists, what has been built, what has been found, where the current architecture works and where it does not, and what the planned next step is. It is intended for a reader (examiner, collaborator, future self) who has not seen the code before.
-
----
-
-## 1. The thesis claim — in one paragraph
-
-Legal documents encode normative reasoning that is fundamentally *defeasible*: a regulation might apply by default, not apply to certain entities, apply only with exceptions, or be overridden by another rule. Standard neural classifiers treat all sentences as monotonically aggregable evidence, with no mechanism for one piece of evidence to *defeat* another. The JusDef framework introduces an **operator algebra Ω = {AFF, NEG, EXC, OVR}** over legal sentences and a graph-neural-network mechanism — **Defeasible Message Passing (DMP)** — in which messages carrying operator labels can defeat each other according to a precedence order. The thesis argues that operator-aware message passing is a principled approach to multi-label classification on regulatory corpora, that JusDef is a strict parametric generalisation of R-GCN (Proposition 1), and that the empirical benefit of the architecture is bounded by the actual semantic density of defeasible operators in the corpus — a constraint that the keyword-based detector used in the workshop version masked, and that a neural detector calibrated against expert annotation reveals.
+This document is the entry point for a quick reader who wants the project's core story in 10 minutes. The full thesis (10 chapters + appendices, ~200 pages of LaTeX) is at `papers/chapter*.tex`. The supervisor outline (5 pages) is at `papers/thesis_outline_for_supervisor.tex`.
 
 ---
 
-## 2. Background
+## TL;DR — what we did and what we found
 
-### 2.1 Defeasible reasoning
-
-In classical (monotonic) logic, adding premises can only add conclusions. In **defeasible reasoning**, conclusions can be withdrawn when new information arrives — modelling the way legal rules genuinely behave (a rule applies *unless* an exception holds; a later law *overrides* an earlier one). The seminal formalisms are Reiter's default logic, Pollock's defeasible reasoning, and modern argumentation frameworks (Dung). LegalRuleML provides a standardised representation for defeasible legal rules but requires manual rule encoding.
-
-### 2.2 Legal NLP and EUR-Lex
-
-The EUR-Lex corpus — a multi-label classification task over EU legislation in the LexGLUE benchmark — contains ~65,000 documents tagged with up to 100 EuroVoc concepts. Standard baselines (Legal-BERT, R-GCN, ASKE) treat each sentence as monotonic evidence for the labels it mentions. The thesis argues that this is structurally inadequate for documents that encode non-monotonic norms.
-
-### 2.3 Why a graph neural network
-
-Documents have rich structure: sections, sentences, mentioned concepts (EuroVoc labels), and authority citations (other regulations). A **heterogeneous graph** with typed nodes (doc, sec, conc, auth, label) and typed edges (`has_section`, `mentions`, `mentions_rev`, `ontology`, `cites`, `maps_to`) captures this richness in a way that pooled-embedding classifiers cannot. The thesis builds on this representation and adds operator-awareness to the message-passing scheme.
+We built a graph neural network framework (JusDef) for multi-label legal document classification with explicit operators for affirmation, negation, exception, and override. We expected the architecture to outperform a standard relational baseline on legal text where defeasibility matters. We were surprised when it did not. We then constructed the methodological infrastructure to understand why: a 3000-sentence expert-validated operator-annotated corpus, a neural operator detector, a cross-corpus density measurement on three legal datasets, and a systematic diagnostic methodology that ruled out five hypothesised causes of the underperformance. The investigation produced eight contributions and a single calibrated empirical finding: defeasibility-aware GNN architectures of the v3 class provide measurable benefit on a narrow operating regime (10–20% non-AFF operator density on LEDGAR contract clauses), with no measurable benefit outside this window on any of the three corpora tested.
 
 ---
 
-## 3. JusDef v1 — the workshop version
+## The thesis claim in one sentence
 
-**Reference**: Khaliq, A. A. (2026). *JusDef: Defeasible Hypergraph Reasoning for Multi-Label Legal Document Classification.* Submitted to ANNPR 2026.
-
-### 3.1 Architecture
-
-- **Heterogeneous graph** with node types {doc, sec, conc, auth, label} and edge types as above.
-- **Operator algebra** Ω = {AFF, NEG, EXC, OVR} with strict partial order **OVR ≻ EXC ≻ NEG ≻ AFF**.
-- **Operator-indexed weights** W_ω for each ω ∈ Ω, applied to messages along the `mentions` (sec → conc) edge type.
-- **Hard defeat gate** implemented as a binary mask: in each concept neighborhood, only the message(s) with the maximum (operator, priority) score survive; all others are zeroed out.
-- **Straight-Through Estimator (STE)** with sigmoid surrogate for backward-pass gradient flow through the binary mask.
-- **Authority scorer**: a learned linear function over (authority type, level, recency) features producing per-message priority scores that participate in the defeat computation.
-- **Proposition 1 (Reduction to R-GCN)**: When every sentence has operator AFF and the defeat gate is open everywhere, JusDef reduces exactly to an R-GCN over operator-indexed sub-relations.
-
-### 3.2 Empirical claim in v1
-
-On EUR-Lex with the keyword operator detector, v1 reported:
-- JusDef ≈ R-GCN on overall macro-F1
-- JusDef **+6.0 points** over R-GCN on the exception-dependent subset Y_exc (21 labels)
-- Multi-seed bootstrap p < 0.001 on Y_exc seed 42
-
-### 3.3 Operator detection in v1
-
-Operators were assigned by a **rule-based keyword detector** (regex on phrases like *"unless"*, *"notwithstanding"*, *"shall not apply"*). Reported density: 94.5% of mention edges labelled AFF, 5.5% non-AFF (NEG, EXC, OVR combined).
+Defeasibility-aware graph neural network architectures have an empirically-identifiable operating regime characterised by sentence-level non-AFF operator density between 10% and 20%; below and above this regime no architectural benefit is detectable; the diagnostic methodology, the cross-corpus density measurement, and the expert-validated operator-annotated corpus required to identify this regime constitute methodological and resource contributions to legal NLP independent of the specific JusDef framework.
 
 ---
 
-## 4. JusDef v2 — the thesis-track extension
+## Eight contributions at a glance
 
-The thesis extends v1 with three architectural corrections and a more rigorous evaluation methodology.
+| # | Contribution | Type | Chapter |
+|---|---|---|---|
+| C1 | Diagnostic methodology (hypothesis-falsification chain over five candidates) | Methodological | 6 |
+| C2 | Y_exc and density-stratified evaluation protocols | Methodological | 3, 8 |
+| C3 | Cross-corpus density measurement (EUR-Lex 0.71%, ECtHR 0.58%, LEDGAR 20.03%) | Methodological / empirical | 5 |
+| C4 | 3000-sentence operator-annotated corpus with κ = 0.77 supervisor IAA | Resource | 5 |
+| C5 | Neural operator detector (validation macro-F1 = 0.977) | Resource | 5 |
+| C6 | v3 architecture grounded in three named prior failure modes | Architectural | 7 |
+| C7 | Three reduction theorems (Propositions 2, 3, 4) | Theoretical | 7 |
+| C8 | Empirically-identified operating regime on LEDGAR (10–20% bin, +0.053 F1 multi-seed) | Empirical | 8 |
 
-### 4.1 The three corrections
+---
 
-| Fix | Description | Why it was needed |
+## What the project actually contains
+
+### 1. An expert-validated operator-annotated corpus
+
+3000 EUR-Lex sentences labelled with one of four operators (AFF, NEG, EXC, OVR) by an AI-assisted bulk-labelling pipeline, validated by two stages of inter-annotator agreement: a 100-sentence self-review (Cohen's κ = 0.79) and a 300-sentence supervisor blind annotation (Cohen's κ = 0.77, substantial agreement under Landis–Koch). The disagreement structure concentrates 58% of supervisor disagreements in a single linguistic pattern ("Unless X, Y" constructions), which is documented as a known limitation of the outermost-wins decision rule. The corpus, the 252-line annotation guidelines, and the IAA validation files are released as `data/annotations/` in the repository.
+
+### 2. A trained neural operator detector
+
+A fine-tuned LegalBERT classifier with held-out validation macro-F1 of 0.977. The detector reproduces the AI labelling function reliably; its end-to-end reliability against expert annotation is bounded by the supervisor κ = 0.77. The detector is applied to three legal corpora to produce per-sentence operator labels at scale, without per-corpus retraining. The checkpoint is released as `outputs/checkpoints/operator_detector_neural.pt`.
+
+### 3. The first systematic cross-corpus density measurement on legal text
+
+Using the same detector applied to three datasets:
+
+| Corpus | Non-AFF density |
+|---|---|
+| EUR-Lex (EU regulations, LexGLUE) | **0.71%** |
+| ECtHR case-law facts (AUEB-NLP) | **0.58%** |
+| LEDGAR (US contract clauses, LexGLUE) | **20.03%** |
+
+The density spans two orders of magnitude. EU regulations and ECtHR facts both have sub-1% explicit defeasible-operator density, falsifying the hypothesis that case law is intrinsically denser in defeasibility markers than regulations. US contract clauses have approximately 28× higher density than regulations, driven primarily by EXC markers (14.35%, "subject to", "except as provided", "unless").
+
+### 4. A signal-preserving v3 architecture
+
+The v3 architecture (`src/model/v3_layer.py`) replaces the hard-defeat DMP layer of v1/v2 with three modifications, each grounded in a specific named prior failure mode from the broader graph-neural-network literature:
+
+- Single shared message transform (addresses the asymmetric-training failure mode whereby operator-indexed W matrices are undertrained at low non-AFF density);
+- Operator-conditioned soft attention (addresses STE gradient bias documented by Liu et al. "Gapped STE" ICML 2022);
+- Per-operator signed coefficients with L2 drift regulariser (addresses signed-GNN sign cancellation documented by Zhu et al. "Sign is Not a Remedy" 2024).
+
+Three theoretical propositions establish that v3 reduces to R-GCN under a specific parameter setting (safety guarantee), recovers hard-DMP as a sharpening limit, and strictly generalises both R-GCN and hard-DMP hypothesis classes.
+
+### 5. A systematic diagnostic methodology
+
+The corrected v2 architecture underperforms R-GCN by 9 macro-F1 points on EUR-Lex across three seeds. We formulated five candidate explanations and tested each through a controlled intervention. All five were falsified:
+
+| Hypothesis | Intervention | Outcome |
 |---|---|---|
-| **F1** | Reverse mention edge (conc → sec) | In v1, operator-conditioned updates at concept nodes never propagated back to sentence nodes, so the sentence-level pooling was operator-blind |
-| **F2** | Authority scorer placed in the forward gradient path | In v1, the authority scorer was outside the main forward graph; its gradients were effectively zero, leaving authority modelling inactive |
-| **F3a** | EuroVoc-derived ontology edges between concept nodes | Originally a placeholder (parent_of with zero edges); v2 populates ~700 edges from the 2-digit EuroVoc broader-domain structure |
+| H1: Threshold protocol bug | Correct val-frozen threshold | Gap persists. Falsified. |
+| H2: Capacity bottleneck | R-GCN at h=768 (2× capacity) | h=768 worse than h=512. Falsified. |
+| H3: Stage-2 curriculum failure | Extended patience, log inspection | Curriculum activates; F1 flat. Falsified. |
+| H4: Operator-density bottleneck | Neural detector → 8.5× density change | F1 unchanged. Falsified. |
+| H5: Auxiliary curriculum harmful | Disable L_onto and L_defeat | F1 unchanged. Falsified. |
 
-A unit-test suite mechanically verifies that operators reach sentences (F1), the authority scorer receives gradient (F2), and ontology edges exist (F3a). All tests pass on the current code (commit `3e734f2`).
+The falsification chain motivated a mechanistic synthesis grounded in three named prior failure modes from the broader literature (STE bias, sign cancellation, encoder negation blindness), which in turn motivated the v3 architecture.
 
-### 4.2 Evaluation methodology corrections
+### 6. The operating-regime identification (the principal positive finding)
 
-- **Threshold protocol**: v1's evaluation tuned the per-split decision threshold on test labels (optimistic bias). v2 tunes on validation, freezes, applies to test. New result fields (`val_threshold`, `val_macro_f1_at_best`) make the protocol auditable.
-- **Multi-seed bootstrap**: 3 seeds (42, 43, 44) for all configurations; paired bootstrap p-values reported.
-- **Sentinel-gated pipeline**: `scripts/run_all_ampere.sh` implements a 9+ stage pipeline with per-stage sentinels, allowing resume after failure without recomputing completed stages.
+On LEDGAR contract clauses, the v3 architecture underperforms a mean-aggregation baseline on the full test set (0.6881 vs. 0.7085 macro-F1, 3-seed mean). But density-stratified evaluation tells a different story:
 
-### 4.3 The surprising negative result
-
-Across three seeds with the corrected protocol, **v2 underperforms R-GCN by ~9 macro-F1 points** on EUR-Lex test:
-
-| Model | test_macro_F1 | val_threshold |
-|---|---|---|
-| R-GCN (h=512) | 0.2731 ± 0.0066 | 0.10–0.14 |
-| R-GCN (h=768 capacity match) | 0.2610 | 0.12 |
-| **JusDef v2 (keyword operators)** | **0.1822 ± 0.0133** | 0.06–0.10 |
-
-This is the central problem the thesis must explain.
-
-### 4.4 The diagnostic methodology
-
-The thesis develops a **systematic hypothesis-falsification methodology** to identify the source of the underperformance. Five candidate explanations were formulated and tested:
-
-1. **Stage-2 losses inactive** — v2 early-stops in Stage 1 before the operator-aware losses (L_onto, L_defeat) engage. *Tested by extending stage1_end.* **Falsified.**
-2. **W_omega specialisation** — operator-specific weight matrices have different roles. *Tested by inspecting weight-norm divergence.* **Falsified (W matrices remain undifferentiated).**
-3. **W_omega capacity** — more parameters needed. *Tested by training R-GCN at h=768 (15.3M params).* **Falsified (h=768 is worse than h=512).**
-4. **Input projection scaling** — gradients suppressed by initialization. *Tested by scaling input projection weights.* **Falsified.**
-5. **Curriculum freezing** — v2 fails because operator weights are not properly frozen at v1's values. *Tested by freezing.* **Falsified.**
-
-Result: no single architectural component explains the gap. The hypothesis pivots to a **corpus-level constraint** — *operator-density bottleneck*.
-
----
-
-## 5. The 3000-sentence operator annotation pipeline
-
-### 5.1 Motivation
-
-The thesis hypothesises that v2's underperformance is bounded by the actual semantic density of defeasible operators in EUR-Lex. To test this, an alternative operator detector — one trained on expert-validated annotations — was required. The keyword regex was suspected of generating false positives.
-
-### 5.2 The dataset
-
-- **3000 EUR-Lex sentences**, stratified by class.
-- **AI-assisted labelling**: Anthropic Claude as the base classifier, with confidence and reasoning fields.
-- **Distribution**: AFF 929, NEG 721, EXC 681, OVR 669 (designed for balance, not for natural prior).
-- **Stored at**: `data/annotations/operator_labels_3000.jsonl`.
-- **Guidelines document**: `data/annotations/operator_guidelines.md` (252 lines, written before annotation began).
-
-### 5.3 Inter-annotator agreement validation
-
-| Study | N | κ | Agreement | Verdict |
+| Density bin | N | Mean baseline | v3 | Δ |
 |---|---|---|---|---|
-| Self-review | 100 | **0.7867** | 84.0% | Substantial |
-| Supervisor blind annotation | 300 | **0.7689** | 82.7% | Substantial |
+| All paragraphs | 10,000 | 0.7085 | 0.6881 | −0.0204 |
+| **10–20% non-AFF** | **156** | **0.6193** | **0.6722** | **+0.0528 (all 3 seeds positive)** |
+| ≥20% non-AFF | 3,353 | 0.7066 | 0.6871 | −0.0194 |
 
-The residual 52 disagreements in the supervisor study are **58% concentrated** in a single linguistic pattern: *"Unless X, Y"* constructions where supervisor labelled AFF (outer rule) and AI labelled EXC (inner exception). This is a documented limitation of the operator algebra under the "outermost wins" rule and is noted as future work for guideline refinement.
-
-### 5.4 The neural operator detector
-
-- Architecture: LegalBERT (`nlpaueb/legal-bert-base-uncased`) with a 4-way classification head.
-- Training: 6 epochs, 2700/300 stratified split, AdamW lr=2e-5.
-- **Held-out macro-F1: 0.9772** (on AI-labelled validation).
-- Reliability against expert annotation: bounded by the supervisor κ=0.77.
-
-### 5.5 Density finding from relabeling
-
-When the trained neural detector relabels all ~14 million concept mentions across EUR-Lex train/val/test, the operator distribution changes dramatically:
-
-| Detector | Total AFF | Total non-AFF | Non-AFF density |
-|---|---|---|---|
-| Keyword (regex) | ~13.1M | ~834k | **5.99%** |
-| **Neural** | ~13.9M | ~100k | **0.71%** |
-
-This is an **~8.5× drop** in non-AFF density. The interpretation that best fits the evidence: the keyword detector substantially over-fired on procedural boilerplate (*"subject to"*, *"provided that"*) that is not semantically defeasible. The neural detector, validated against expert annotation, identifies a much smaller fraction of sentences as carrying non-default operators.
-
-**Empirical consequence**: the operator-density bottleneck hypothesised for v2 underperformance is real — and tighter than originally thought. EUR-Lex has roughly 1% non-AFF semantic density, not 5.5%.
+The 10–20% bin corresponds linguistically to "main rule with one or two exceptions" contract clauses. The seed-by-seed deltas are +0.0682, +0.0199, +0.0704. The effect size is 2.3× the seed-to-seed standard deviation. This is the principal positive empirical finding of the thesis.
 
 ---
 
-## 6. Empirical results to date (as of June 2026)
+## What the project does NOT claim
 
-### 6.1 Headline table
-
-| Model | Operator source | test_macro_F1 | Notes |
-|---|---|---|---|
-| R-GCN (h=512) | n/a | **0.2731 ± 0.0066** | Mean over seeds 42/43/44 |
-| R-GCN (h=768) | n/a | 0.2610 | Capacity match, single seed |
-| JusDef v2 (full) | keyword | **0.1822 ± 0.0133** | Mean over seeds 42/43/44 |
-| JusDef v2 (full) | neural | (in progress) | Stage 7.5d, seed 42 currently at val ≈ 0.18 epoch 33 |
-
-### 6.2 Key empirical findings
-
-1. **Threshold protocol matters**: v1's test-tuned threshold inflated reported test_macro by ~2–4 points. The corrected protocol (val-tuned, frozen for test) reduces numbers but is methodologically defensible.
-2. **R-GCN replicates the v1 paper exactly** (mean 0.273 vs reported 0.274), validating the new pipeline.
-3. **R-GCN h=768 is worse than h=512** — capacity is not the constraint on v2's performance.
-4. **v2 keyword underperformance is robust across seeds** (std 0.013, ~5.6σ below R-GCN mean).
-5. **Neural-detector relabeling reduces non-AFF density 8.5×**, falsifying the hypothesis that the keyword detector's 5.5% non-AFF was a faithful estimate of corpus operator density.
+- No claim of state-of-the-art macro-F1 on EUR-Lex. Graph-only architectures (including R-GCN) underperform transformer baselines by approximately 25–30 macro-F1 points on this benchmark. This is a documented property of the architectural class, not a critique of JusDef specifically.
+- No claim of uniform empirical benefit of defeasibility-aware GNNs. The positive finding is restricted to a narrow operating regime (10–20% non-AFF density on LEDGAR, 1.56% of the test set). Outside this window, no architectural benefit is detectable on any of the three corpora tested.
+- No claim of architectural novelty in any individual component of v3. Each component has prior art in adjacent communities (signed-GCN, soft attention, drift regularisation). The architectural contribution is the principled synthesis targeted at three specifically-diagnosed prior failure modes.
 
 ---
 
-## 7. Architectural finding — why JusDef v2 underperforms R-GCN
+## Practical takeaways for legal-NLP practitioners
 
-The current `compute_defeat_mask` in `src/model/dmp_layer.py` uses a **hard binary mask**: in each concept neighborhood, only the maximum-priority message(s) survive; all others are zeroed.
+1. **Measure operator density before architectural commitment.** The trained neural detector can be applied off-the-shelf to any English legal corpus to estimate non-AFF density. If the corpus has density below approximately 10%, defeasibility-aware GNN architectures of the v3 class are unlikely to provide benefit, and a simpler baseline (R-GCN, mean aggregation, or a transformer classifier) is more parameter-efficient.
 
-```python
-defeat_score = operators * 1000.0 + priorities
-group_max = scatter_reduce(defeat_score, dst_nodes, "amax")
-mask = (group_max[dst_nodes] - defeat_score - 0.001 <= 0).float()
-```
+2. **Report stratified metrics alongside aggregate metrics.** Architectural benefits restricted to narrow operating regimes are invisible in aggregate macro-F1 but identifiable in stratified evaluation. The Y_exc protocol on EUR-Lex and the density-stratified evaluation on LEDGAR are released as reusable methodologies.
 
-With 5.99% non-AFF density at the typical concept degree of 30–50 incoming edges:
-
-- P(concept has ≥ 1 non-AFF edge given 50 edges) ≈ 1 − 0.94⁵⁰ ≈ **95%**
-- For those 95% of concepts, **every AFF message is zeroed**
-- Approximately **94% of the incoming signal is discarded** at each layer
-
-This is a structural cause of the v2 underperformance: when AFF messages dominate the graph but are masked by sparse non-AFF presence, the model loses most of the predictive signal. With the neural detector at 0.71% density, the math is different in detail but the masking still destroys most AFF signal in neighborhoods where any non-AFF edge appears.
-
-This explains why the v1 paper's bootstrap ablation found that **DMP itself contributes nothing significant** to overall macro-F1 (memory: `project_jusdef_bootstrap.md`). The defeat mechanism that gives the architecture its name is actively harmful at the observed operator densities.
+3. **For overall classification accuracy on legal multi-label tasks, use fine-tuned transformers.** This thesis's contribution is to the architectural-characterisation question, not to the absolute-accuracy comparison.
 
 ---
 
-## 8. The proposed next step — Continuous Defeasible Message Passing (cDMP)
-
-### 8.1 Design
-
-cDMP replaces the hard mask with a **continuous attenuation weight** in (0, 1), produced by:
-
-1. A **soft defeat function** (sigmoid of the priority gap), so AFF messages in non-AFF-containing neighborhoods are attenuated rather than zeroed.
-2. An **operator-conditioned attention** mechanism: attention logits computed from `[h_src, h_dst, operator_embedding, authority_score]` via a small MLP, then softmax-normalised over messages targeting the same concept.
-
-```python
-defeat_weight = sigmoid(-priority_gap * temperature)        # soft Fix 1
-attn = scatter_softmax(MLP([h_s, h_c, op_emb, auth]), dst)  # new attention
-message_out = (defeat_weight * attn) * (W_op @ src_emb)
-```
-
-### 8.2 Theoretical claim — Proposition 2
-
-cDMP strictly generalises both R-GCN and the hard JusDef DMP:
-
-1. As temperature → ∞ and operator embeddings produce a hard step, cDMP → hard DMP (v1/v2).
-2. As attention logits → constant and defeat weights → 1, cDMP → R-GCN over operator-indexed sub-relations.
-3. For temperature in (0, ∞), the hypothesis class is strictly larger than either limit.
-
-This makes cDMP a principled middle ground with both classical baselines as boundary cases.
-
-### 8.3 Empirical hypothesis
-
-If the v2 underperformance is caused by hard-mask information destruction (Section 7), then cDMP should:
-
-- Close the gap to R-GCN on overall macro-F1
-- Recover or exceed v1's reported Y_exc gain on the defeasible-relevant subset
-- Hold up under both keyword (5.99% density) and neural (0.71% density) detectors, demonstrating density-robustness
-
-### 8.4 Implementation status
-
-Not yet implemented. Planned as the central architectural contribution of the thesis. Estimated effort: 1–2 days of code + 5–7 days of GPU evaluation.
-
----
-
-## 9. Honest weaknesses and limitations
-
-### 9.1 Empirical weaknesses
-
-- **EUR-Lex is a low-operator-density corpus** (~1% semantic non-AFF density). The defeasible-MP architecture is least useful precisely where it was first evaluated. Future work must include denser corpora (ECtHR Task B, contract law).
-- **Single-section graphs**: many EUR-Lex documents collapse to a single sentence-level node, weakening section-level pooling. This is a preprocessing limitation that hasn't been fully audited.
-- **Y_exc subset is small** (21 labels) and partly seen-label-dominated (20/21 in seen, 1/21 in unseen), limiting its sensitivity as a defeasibility-specific evaluation.
-
-### 9.2 Annotation weaknesses
-
-- **3000 sentences is small** for a deep learning task. The neural detector's 0.98 held-out F1 is on the same AI-label distribution, not an independent gold standard.
-- **κ = 0.77 supervisor agreement** is substantial but the residual 52 disagreements concentrate in a known ambiguous linguistic pattern (*"Unless X, Y"*). Guideline refinement is future work.
-- The neural detector is itself a downstream model — its reliability against the AI labels does not directly speak to its reliability against expert annotation.
-
-### 9.3 Architectural weaknesses
-
-- **Hard-defeat masking destroys 94% of AFF signal** in concept neighborhoods with any non-AFF presence (Section 7). This is the principal failure mode.
-- **Authority scorer is linear** in (type, level, recency) — does not capture subject-matter overlap (*lex specialis*) or temporal/deontic interactions.
-- **Single-relation graph** — does not implement the *scope-nested hypergraph* mentioned in the v1 paper introduction. The hypergraph extension is deferred to future work.
-
-### 9.4 Methodological weaknesses
-
-- The diagnostic methodology produced *negative* results: five hypotheses tested and falsified, leaving the architecture-vs-corpus distinction unsettled until the neural-detector data became available.
-- The R-GCN baseline replication, while exact (0.273 vs 0.274 reported), is on a single architecture family. Comparison against transformer-only models (Legal-BERT classifier head) has not been re-run with the corrected threshold protocol.
-
----
-
-## 10. The thesis framing
-
-The thesis is **not** the story "we built JusDef and it works." It is the story:
-
-> "We built JusDef v1 expecting an architectural gain on defeasible legal classification. We corrected three implementation issues in v2 and verified them mechanically. The corrected v2 unexpectedly underperformed the R-GCN baseline. Through systematic hypothesis falsification, we identified the cause as the hard-defeat mask catastrophically destroying signal in low-operator-density regimes. We validated the density estimate using a 3000-sentence expert-validated annotation dataset and a neural operator detector, finding the actual semantic operator density in EUR-Lex (~0.7%) is far below what the original keyword detector reported (5.5%). To address the architectural cause, we propose **Continuous Defeasible Message Passing (cDMP)**, with a two-sided reduction theorem showing that both R-GCN and the original hard DMP are limit cases. We validate cDMP empirically on EUR-Lex under both detection regimes and demonstrate that the architecture is density-robust. Future work includes denser corpora (ECtHR), hypergraph extensions for nested scope, and refined guidelines for the residual *"Unless X, Y"* ambiguity."
-
-This frames five contributions:
-
-1. **Theoretical**: cDMP architecture + Proposition 2 two-sided reduction
-2. **Empirical**: multi-seed, multi-detector validation showing density-robustness
-3. **Methodological**: hypothesis-falsification methodology for attributing GNN performance issues
-4. **Resource**: 3000-sentence operator-annotated dataset with κ=0.77 supervisor IAA
-5. **Domain insight**: actual semantic operator density in EUR-Lex is ~0.7%, an order of magnitude below keyword-detector estimates
-
----
-
-## 11. Code organisation
+## Code organisation
 
 ```
 jusdefv2/
-├── AMPERE_RUNBOOK.md            ← stage-by-stage execution runbook
 ├── PROJECT_OVERVIEW.md          ← this document
+├── AMPERE_RUNBOOK.md            ← reproducibility runbook for the cluster
 ├── notes/
-│   └── methodology.md           ← detailed diagnostic chronology, ~1800 lines
+│   └── methodology.md           ← detailed diagnostic chronology
 ├── data/
-│   ├── annotations/             ← guidelines, 3000 labels, IAA files
-│   │   ├── operator_guidelines.md
-│   │   ├── operator_labels_3000.jsonl
-│   │   ├── exception_labels.json
-│   │   ├── eurovoc_label_names.json
-│   │   └── iaa/
-│   │       ├── self_review_100.jsonl       (κ=0.79)
-│   │       ├── supervisor_300_returned.jsonl  (κ=0.77)
-│   │       ├── supervisor_300_sent.jsonl
-│   │       └── supervisor_300_with_ai.jsonl
-│   ├── eurovoc/                 ← raw RDF (gitignored, 58 MB)
-│   ├── processed/               ← keyword-operator pickles, embeddings, label_adj.pt
-│   └── processed_neural/        ← neural-operator pickles + graphs (Stage 7.5b/c output)
+│   ├── annotations/             ← released corpus + guidelines + IAA files
+│   ├── eurovoc/                 ← raw EuroVoc RDF (gitignored, 58 MB)
+│   ├── processed/               ← keyword-operator graphs and embeddings
+│   └── processed_neural/        ← neural-operator graphs (Stage 7.5 output)
 ├── src/
 │   ├── model/
-│   │   ├── jusdef.py            ← assembled model (HeteroConv + DMPLayer)
-│   │   ├── dmp_layer.py         ← Defeasible Message Passing core
-│   │   ├── authority_scorer.py  ← learned per-(type, level, recency) priority
-│   │   └── baselines.py         ← R-GCN, threshold tuning
-│   ├── kg/
-│   │   ├── kg_builder.py        ← HeteroData graph construction
-│   │   └── graph_utils.py
+│   │   ├── jusdef.py            ← assembled v2 model
+│   │   ├── dmp_layer.py         ← hard-DMP layer (v1, v2)
+│   │   ├── v3_layer.py          ← V3Layer (signal-preserving)
+│   │   ├── jusdef_ledgar.py     ← LEDGAR paragraph classifier
+│   │   ├── authority_scorer.py
+│   │   └── baselines.py         ← R-GCN baseline
+│   ├── kg/kg_builder.py
 │   ├── preprocess/
-│   │   ├── data_loader.py       ← EUR-Lex via HF datasets
-│   │   ├── section_splitter.py
-│   │   ├── concept_linker.py    ← EuroVoc concept linking
-│   │   ├── operator_detector.py ← keyword (regex) detector
-│   │   └── authority_extractor.py
 │   ├── train/
-│   │   ├── trainer.py           ← staged training with curriculum
-│   │   └── losses.py            ← BCE + L_onto + L_defeat
 │   └── eval/
-│       ├── metrics.py           ← Macro/Micro/Yexc/seen/unseen
-│       └── bootstrap.py         ← paired bootstrap p-values
-├── scripts/                     ← pipeline entry points
-│   ├── preprocess_all.py        ← Stage 1: keyword operator graphs
-│   ├── extract_embeddings.py    ← Stage 2: Legal-BERT embeddings
-│   ├── build_label_adj.py       ← Stage 3: EuroVoc adjacency
-│   ├── build_graphs.py          ← Stage 4: HeteroData graphs
-│   ├── train_rgcn.py            ← Stages 6, 6.5
-│   ├── train_jusdef.py          ← Stage 7 + ablations (8)
-│   ├── train_operator_detector.py ← Stage 7.5a (LegalBERT fine-tune)
-│   ├── relabel_operators_neural.py ← Stage 7.5b
-│   ├── eval_all_jusdef.py       ← Stage 9: unified evaluation
-│   ├── compute_iaa.py           ← Cohen's κ for annotator/supervisor
-│   └── run_all_ampere.sh        ← master pipeline with sentinels
-├── tests/
-│   └── test_architecture_fixes.py  ← F1, F1b, F2, F3a, F5 (all pass)
+├── scripts/                     ← end-to-end pipeline entry points
+├── tests/test_architecture_fixes.py   ← unit tests (9 passing + 2 xfail)
 └── outputs/
-    ├── checkpoints/             ← model weights (gitignored)
-    ├── logs/                    ← JSON results + per-stage logs
-    └── sentinels/               ← stage completion markers
+    ├── checkpoints/             ← trained model checkpoints
+    ├── logs/                    ← per-seed JSON results
+    └── sentinels/               ← stage-completion markers
 ```
 
 ---
 
-## 12. How to reproduce
+## Reproducibility — one-line summary
 
-### Prerequisites
-- Python 3.10
-- A100 GPU (or equivalent), 24+ GB VRAM recommended
-- HuggingFace cache writeable
-- ~50 GB disk for processed data + checkpoints
-
-### Quick start (assuming Stages 1–3 already cached)
 ```bash
-git clone https://github.com/oziofficial5/jusdefv2
-cd jusdefv2
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# Mark cached stages as done if you have them, else delete sentinels
-touch outputs/sentinels/{1,2,3,4}.done
-
-# Run the full pipeline
-export JUSDEF_NEURAL_SEEDS="42 43 44"
+# Full EUR-Lex pipeline (5–8 days on A100)
 bash scripts/run_all_ampere.sh
+
+# Full LEDGAR pilot (5–7 hours on A100)
+bash scripts/run_pilot_ledgar.sh
+
+# Density-stratified analysis (no GPU needed, ~30 seconds)
+python scripts/analyse_ledgar_density_subset.py
 ```
 
-Detailed reproduction is in `AMPERE_RUNBOOK.md`.
+All numbers in the thesis can be reproduced from the released artefacts. See `AMPERE_RUNBOOK.md` for the detailed runbook.
 
 ---
 
-## 13. Glossary
+## Publications
 
-| Term | Definition |
+| # | Paper | Venue | Status |
+|---|---|---|---|
+| 1 | Khaliq & Montanelli, "Language Models for Legal NLP: A Literature Review" | CAiSE 2025 Workshops, Springer LNBIP vol. 556 | Published |
+| 2 | Khaliq, Riva & Montanelli, "Evaluating Knowledge-Based Approaches for Legal Text Analysis: A Benchmark Study" | Computer Law & Security Review, vol. 61 | Published 2026 |
+| 3 | Khaliq, "JusDef: Defeasible Hypergraph Reasoning for Multi-Label Legal Document Classification" | ANNPR 2026 | Submitted, under review |
+| 4 | (Planned) v3 architecture + operating-regime identification | TACL or AAAI 2027 | In preparation |
+
+The eight thesis contributions (C1–C8) are thesis-only and do not appear in the three published / submitted papers above. They are the new material introduced in the thesis track.
+
+---
+
+## Timeline
+
+| Date | Milestone |
 |---|---|
-| **AFF / NEG / EXC / OVR** | Operator labels for affirmation, negation, exception, override |
-| **DMP** | Defeasible Message Passing — the message-passing scheme that defeats lower-priority operators |
-| **cDMP** | Continuous DMP — proposed v3 with soft mask and operator-conditioned attention |
-| **Y_exc** | Exception-dependent label subset (21 EuroVoc labels), used as defeasibility-specific eval |
-| **F1, F2, F3a/b/c** | v2 architectural correction labels (reverse edge, authority in grad path, ontology/auth-hierarchy/auth-concept edges) |
-| **STE** | Straight-Through Estimator — passes gradients through a hard binary forward op |
-| **W_ω** | Operator-indexed weight matrix (one per ω ∈ Ω) |
-| **κ** | Cohen's kappa — chance-corrected inter-annotator agreement |
-| **EuroVoc** | EU's multilingual thesaurus of legal concepts; provides the 100 labels |
-| **LexGLUE** | Standardised benchmark suite for legal NLP including EUR-Lex |
-| **R-GCN** | Relational Graph Convolutional Network — the parametric baseline |
+| 2024–2025 | PhD years 1–2: survey + ASKE benchmark + JusDef v1 (ANNPR submission) |
+| 2026-04 to 2026-05 | v2 architectural corrections (F1, F2, F3a); diagnostic methodology |
+| 2026-05 to 2026-06 | 3000-sentence corpus; neural detector; cross-corpus density measurement |
+| 2026-06 | v3 architecture; LEDGAR operating regime identification |
+| **2026-06-17** | **Full thesis first draft complete (10 chapters + appendices)** |
+| 2026-06-22 OR 07-02 | Internal committee presentation |
+| 2026-07 to 2026-08 | Supervisor revision rounds |
+| 2026-09-15 | Target submission |
 
 ---
 
-## 14. Publications and submissions
+## Status at this document (17 June 2026)
 
-| # | Title | Venue | Status |
-|---|---|---|---|
-| 1 | Language Models for Legal NLP: A Literature Review | CAiSE 2025 Workshops | Published |
-| 2 | Evaluating Knowledge-based Approaches for Legal Text Analysis: A Benchmark Study | *Computer Law & Security Review*, vol. 61 | Published 2026 |
-| 3 | JusDef: Defeasible Hypergraph Reasoning for Multi-Label Legal Document Classification | ANNPR 2026 | Submitted, under review |
-| 4 | Multimodal Deepfake Detection with Large Vision-Language Models | TBD | In preparation |
-
-Google Scholar: https://scholar.google.com/citations?user=OaQs2-MAAAAJ&hl=en
-
----
-
-## 15. Open questions for the thesis viva
-
-1. *Why is hard-defeat masking the right design at all?* Answer: it follows the partial-order semantics of classical defeasible reasoning. But it imposes an aggregation-time decision rather than a feature-space one, and that aggregation-time decision throws away information. cDMP is the principled relaxation.
-2. *Is the 3000-sentence dataset large enough?* Answer: for training a high-precision detector, yes (val F1 = 0.98). For establishing absolute corpus-density estimates, it's a sample, not a census. The 0.71% density estimate has uncertainty bounded by the detector reliability (κ=0.77 against supervisor).
-3. *What would change the conclusion?* A denser corpus (ECtHR) showing cDMP gains where EUR-Lex does not. That would shift the contribution from "architecture works under sparse operator regime" to "architecture works conditional on density"; both are publishable.
-4. *Why not use a larger language model?* The thesis is about graph-architecture innovation, not about scaling encoder capacity. Legal-BERT is the standard backbone in this literature.
+- ✅ All eight contributions empirically and methodologically substantiated
+- ✅ Three-seed multi-seed evaluations completed on EUR-Lex and LEDGAR
+- ✅ Cross-corpus density measurement across three corpora completed
+- ✅ Full thesis first draft complete (10 chapters, 7 appendices, 85+ bibliography entries, ~200 pages)
+- ✅ Supervisor outline (5 pages) prepared for review
+- 🟡 Cross-reference audit and figure preparation pending
+- ⏳ Supervisor revision rounds upcoming
+- ⏳ Final submission September 2026
 
 ---
 
-## 16. Status as of this document (15 June 2026)
-
-### THE FINAL EMPIRICAL FINDING
-
-Multi-seed (42, 43, 44) density-stratified evaluation on LEDGAR contract clauses
-identifies a narrow but robust operator-density operating regime where v3 provides
-measurable benefit:
-
-| Density bin | mean baseline | v3 | Δ (3-seed mean) |
-|---|---|---|---|
-| All paragraphs | 0.7085 ± 0.0036 | 0.6881 ± 0.0110 | −0.0204 |
-| **10-20% non-AFF** | **0.6193 ± 0.0262** | **0.6722 ± 0.0103** | **+0.0528** |
-| ≥20% non-AFF | 0.7066 ± 0.0017 | 0.6871 ± 0.0100 | −0.0194 |
-
-All 3 seeds positive on the 10-20% bin (+0.0682, +0.0199, +0.0704).
-This is the empirically-identified operating regime — the thesis's central
-positive empirical contribution (C8).
-
-### Status snapshot
-
-- ✅ JusDef v1 submitted to ANNPR 2026
-- ✅ v2 architectural corrections (F1, F2, F3a) committed and verified
-- ✅ Threshold protocol corrected and validated against v1 paper's R-GCN baseline
-- ✅ 3000-sentence annotation dataset built and validated (self κ=0.79, supervisor κ=0.77)
-- ✅ Neural operator detector trained (val macro-F1 = 0.977)
-- ✅ Neural-detector relabeling on EUR-Lex: 0.71% non-AFF density measured
-- ✅ R-GCN baseline replicated: mean test_macro = 0.2731 ± 0.0066 (3 seeds)
-- ✅ JusDef v2 keyword baseline: mean test_macro = 0.1822 ± 0.0133 (3 seeds)
-- ✅ JusDef v2 neural baseline: mean test_macro ≈ 0.18 (3 seeds completed Stage 7.5)
-- ✅ **ECtHR density measurement (AUEB-NLP/ecthr_cases, 200 cases, neural detector)**:
-  - All paragraphs: 0.52% non-AFF
-  - Silver-rationale paragraphs: 0.58% non-AFF
-  - **Both below EUR-Lex's 0.71%** — the case-law-is-denser hypothesis is FALSIFIED for this dataset; density-floor is a corpus-intrinsic finding
-- ✅ **v3 architecture (signal-preserving) implemented on branch `jusdef-v3`**:
-  - Single shared W_shared (addresses W-undertraining)
-  - Soft sigmoid attention (addresses STE bias)
-  - Per-operator signed coefficient + drift regulariser (addresses sign cancellation)
-  - Operator-conditioned attention MLP (HAN/HGT-style)
-  - All architecture tests pass: 9 passed, 2 xfailed (F3b, F3c deferred)
-- ✅ Thesis outline finalised (`notes/thesis_outline.md`)
-- 🟡 Stage 8 keyword ablations in progress (no_dmp seed 42 epoch 2 as of last update)
-- ⏳ v3 pilot pending (`scripts/run_pilot_v3.sh` ready)
-- ⏳ Chapters 1, 4, 5, 6, 7 writing pending (Chapter 3 partially drafted)
-
-## 17. The thesis framing (final, post-ECtHR measurement)
-
-The thesis is now framed around **four primary contributions**:
-
-1. **Methodological — Diagnostic framework** (C1)
-   The hypothesis-falsification methodology applied to v2's underperformance, falsifying capacity, threshold, and density bottleneck hypotheses through controlled experiments. Reusable for future defeasibility-aware GNN work.
-
-2. **Methodological — Y_exc evaluation protocol** (C2)
-   Defeasibility-stratified subset evaluation; no published precedent for legal multi-label classification.
-
-3. **Empirical — Two-corpus density measurement** (C3)
-   First systematic measurement of explicit operator density in legal NLP. EUR-Lex 0.71% + ECtHR 0.52-0.58%, both below the architectural floor required for hard-defeat DMP to provide measurable benefit. Generalises the negative result from one dataset to a domain-level finding.
-
-4. **Resource — 3000-sentence annotated corpus + neural detector** (C4 + C5)
-   Operator-annotated dataset with expert IAA (κ = 0.77 supervisor), trained LegalBERT detector at val_macro_F1 = 0.977, density-calibration infrastructure released publicly.
-
-Secondary contributions:
-
-5. **Architectural — v3 signal-preserving aggregation** (C6)
-   Single layer class (`src/model/v3_layer.py`) that replaces hard-defeat DMP with soft attention + signed coefficients + drift regulariser + shared transform. Each modification cites a specific prior failure mode (STE bias, signed-GNN sign cancellation, W-undertraining).
-
-6. **Theoretical — Propositions 2, 3, 4** (C7)
-   v3 strictly generalises R-GCN (Prop 2, performance floor) and recovers hard DMP as a limit case (Prop 3). Strict generalisation property (Prop 4).
-
-The empirical target is **Y_exc-specific gain + overall macro-F1 recovery to R-GCN baseline**, NOT macro-F1 SOTA. Transformer baselines on EUR-Lex (LegalBERT ≈ 0.57 macro-F1) are out of scope for graph-only architectures.
-
----
-
-*This document is the entry point. Code starts at `scripts/run_all_ampere.sh` (v2 pipeline) or `scripts/run_pilot_v3.sh` (v3 pilot). Theory starts at `Chapter 3` of the thesis. Diagnostic history is in `notes/methodology.md`. Thesis structure is in `notes/thesis_outline.md`. Annotation provenance is in `data/annotations/`.*
+*This document is the project's entry point. The full thesis is in `papers/chapter*.tex`. The supervisor outline is in `papers/thesis_outline_for_supervisor.tex`. The diagnostic chronology is in `notes/methodology.md`. The annotation provenance is in `data/annotations/`. The released checkpoints and JSON result files reproduce every empirical claim.*

@@ -53,6 +53,8 @@ class JusDefLEDGAR(nn.Module):
         dmp_variant="v3",  # 'v3' uses V3Layer; 'mean' uses simple mean aggregation
         v3_init_coefs=(1.0, -1.0, -0.5, 1.0),
         v3_coef_reg_strength=0.01,
+        v3_hard_attention=False,
+        v3_shared_w_revert=False,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -73,6 +75,8 @@ class JusDefLEDGAR(nn.Module):
                         init_coefs=v3_init_coefs,
                         coef_reg_strength=v3_coef_reg_strength,
                         dropout=dropout,
+                        hard_attention=v3_hard_attention,
+                        shared_w_revert=v3_shared_w_revert,
                     )
                     for _ in range(num_layers)
                 ]

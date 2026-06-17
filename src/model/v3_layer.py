@@ -68,15 +68,28 @@ class V3Layer(nn.Module):
         init_coefs=(1.0, -1.0, -0.5, 1.0),  # AFF, NEG, EXC, OVR
         coef_reg_strength=0.01,
         dropout=0.3,
+        hard_attention=False,        # ablation: use one-hot argmax instead of softmax
+        shared_w_revert=False,       # ablation: use per-operator W instead of shared W
     ):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.coef_reg_strength = coef_reg_strength
+        self.hard_attention = hard_attention
+        self.shared_w_revert = shared_w_revert
 
-        # Single shared transform — gets gradient from every message
-        # (Addresses failure mode 3: W-undertraining)
-        self.W_shared = nn.Linear(in_dim, out_dim, bias=False)
+        # Message transform
+        if shared_w_revert:
+            # Ablation: per-operator W instead of single shared (reverts v3's
+            # shared-transform design to test whether the shared W is necessary)
+            self.W_per_op = nn.ModuleList(
+                [nn.Linear(in_dim, out_dim, bias=False)
+                 for _ in range(self.NUM_OPERATORS)]
+            )
+        else:
+            # Single shared transform — gets gradient from every message
+            # (Addresses failure mode 3: W-undertraining)
+            self.W_shared = nn.Linear(in_dim, out_dim, bias=False)
 
         # Operator embedding for attention conditioning
         self.op_emb = nn.Embedding(self.NUM_OPERATORS, op_emb_dim)
@@ -145,8 +158,15 @@ class V3Layer(nn.Module):
         if E == 0:
             return torch.zeros(num_dst, self.out_dim, device=device)
 
-        # 1. Shared transform — single W gets every message
-        msg = self.W_shared(src_embs)  # (E, out_dim)
+        # 1. Message transform — single shared W (default) or per-operator W (ablation)
+        if self.shared_w_revert:
+            msg = torch.zeros(E, self.out_dim, device=device)
+            for op_idx in range(self.NUM_OPERATORS):
+                op_mask = (operators == op_idx)
+                if op_mask.any():
+                    msg[op_mask] = self.W_per_op[op_idx](src_embs[op_mask])
+        else:
+            msg = self.W_shared(src_embs)  # (E, out_dim)
 
         # 2. Feature conditioning
         op_feat = self.op_emb(operators)  # (E, op_emb_dim)
@@ -158,17 +178,29 @@ class V3Layer(nn.Module):
         attn_input = torch.cat([msg, op_feat, auth_feat, dst_feat], dim=-1)
         attn_logits = self.attn_mlp(attn_input).squeeze(-1)  # (E,)
 
-        # 4. Scatter-softmax per destination, numerically stable
+        # 4. Attention weights — soft scatter-softmax (default) or hard argmax (ablation)
         attn_max = torch.full((num_dst,), -1e9, device=device)
         attn_max = attn_max.scatter_reduce(
             0, dst_node_ids, attn_logits, reduce="amax", include_self=True
         )
-        attn_stable = attn_logits - attn_max[dst_node_ids]
-        attn_exp = torch.exp(attn_stable)
-        attn_sum = torch.zeros(num_dst, device=device)
-        attn_sum.scatter_add_(0, dst_node_ids, attn_exp)
-        attn_sum = attn_sum.clamp(min=1e-8)
-        attn_weights = attn_exp / attn_sum[dst_node_ids]  # (E,)
+        if self.hard_attention:
+            # Ablation: one-hot argmax per destination (reverts soft attention
+            # to a hard-mask attention, similar in spirit to v2's hard defeat
+            # gate but without operator-precedence-based scoring)
+            attn_weights = (attn_logits >= attn_max[dst_node_ids] - 1e-6).float()
+            # Normalise so each destination's weights sum to 1
+            attn_sum = torch.zeros(num_dst, device=device)
+            attn_sum.scatter_add_(0, dst_node_ids, attn_weights)
+            attn_sum = attn_sum.clamp(min=1.0)
+            attn_weights = attn_weights / attn_sum[dst_node_ids]
+        else:
+            # Default soft scatter-softmax
+            attn_stable = attn_logits - attn_max[dst_node_ids]
+            attn_exp = torch.exp(attn_stable)
+            attn_sum = torch.zeros(num_dst, device=device)
+            attn_sum.scatter_add_(0, dst_node_ids, attn_exp)
+            attn_sum = attn_sum.clamp(min=1e-8)
+            attn_weights = attn_exp / attn_sum[dst_node_ids]  # (E,)
 
         # 5. Per-operator signed coefficient
         coefs = self.op_coef[operators]  # (E,)

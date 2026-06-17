@@ -121,6 +121,19 @@ def main():
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--patience", type=int, default=5)
     parser.add_argument("--v3_coef_reg_strength", type=float, default=0.01)
+    parser.add_argument(
+        "--v3_init_coefs", type=str, default="1.0,-1.0,-0.5,1.0",
+        help="Comma-separated init values for AFF,NEG,EXC,OVR. Default '1.0,-1.0,-0.5,1.0'; "
+             "ablation: '1.0,1.0,1.0,1.0' for unit-coef variant",
+    )
+    parser.add_argument(
+        "--v3_hard_attention", action="store_true",
+        help="Ablation: use one-hot argmax attention instead of soft softmax",
+    )
+    parser.add_argument(
+        "--v3_shared_w_revert", action="store_true",
+        help="Ablation: use per-operator W matrices instead of single shared W",
+    )
     parser.add_argument("--max_train", type=int, default=0,
                         help="If > 0, limit training set size (for smoke)")
     args = parser.parse_args()
@@ -148,6 +161,10 @@ def main():
 
     print(f"  Train: {len(train_data)}, Val: {len(val_data)}, Test: {len(test_data)}")
 
+    # Parse v3 init coefs
+    v3_init_coefs = tuple(float(x) for x in args.v3_init_coefs.split(","))
+    assert len(v3_init_coefs) == 4, "v3_init_coefs must be 4 comma-separated floats"
+
     # Model
     model = JusDefLEDGAR(
         in_dim=768,
@@ -156,9 +173,15 @@ def main():
         num_layers=args.num_layers,
         dropout=args.dropout,
         dmp_variant=args.dmp_variant,
+        v3_init_coefs=v3_init_coefs,
         v3_coef_reg_strength=args.v3_coef_reg_strength,
+        v3_hard_attention=args.v3_hard_attention,
+        v3_shared_w_revert=args.v3_shared_w_revert,
     ).to(device)
     print(f"  Params: {sum(p.numel() for p in model.parameters()):,}")
+    print(f"  V3 config: variant={args.dmp_variant}, layers={args.num_layers}, "
+          f"init_coefs={v3_init_coefs}, reg={args.v3_coef_reg_strength}, "
+          f"hard_attn={args.v3_hard_attention}, shared_w_revert={args.v3_shared_w_revert}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
