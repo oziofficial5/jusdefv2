@@ -107,8 +107,10 @@ def main():
     parser.add_argument("--data_dir", default="data/processed_ledgar")
     parser.add_argument("--tag", default="v3_pilot")
     parser.add_argument(
-        "--dmp_variant", choices=["v3", "mean"], default="v3",
-        help="'v3' = operator-aware (V3Layer); 'mean' = R-GCN-equivalent baseline",
+        "--dmp_variant", choices=["v3", "mean", "v4_hard", "v4_soft"], default="v3",
+        help="'v3' = operator-aware (V3Layer); 'mean' = R-GCN-equivalent baseline; "
+             "'v4_hard' = density-gated routing between v3 and mean (no learned router); "
+             "'v4_soft' = learned per-paragraph gate between v3 and mean",
     )
     parser.add_argument("--hidden_dim", type=int, default=512)
     parser.add_argument("--num_classes", type=int, default=100)
@@ -134,6 +136,15 @@ def main():
         "--v3_shared_w_revert", action="store_true",
         help="Ablation: use per-operator W matrices instead of single shared W",
     )
+    parser.add_argument("--v4_density_lo", type=float, default=0.10,
+                        help="v4_hard: lower density bound for routing to v3")
+    parser.add_argument("--v4_density_hi", type=float, default=0.20,
+                        help="v4_hard: upper density bound for routing to v3")
+    parser.add_argument("--v4_router_hidden_dim", type=int, default=32,
+                        help="v4_soft: hidden dim of the routing MLP")
+    parser.add_argument("--v4_soft_init_bias", type=float, default=5.0,
+                        help="v4_soft: initial bias on the routing logit; "
+                             "sigmoid(bias) is the initial gate value (~1 at default)")
     parser.add_argument("--max_train", type=int, default=0,
                         help="If > 0, limit training set size (for smoke)")
     args = parser.parse_args()
@@ -177,11 +188,21 @@ def main():
         v3_coef_reg_strength=args.v3_coef_reg_strength,
         v3_hard_attention=args.v3_hard_attention,
         v3_shared_w_revert=args.v3_shared_w_revert,
+        v4_density_lo=args.v4_density_lo,
+        v4_density_hi=args.v4_density_hi,
+        v4_router_hidden_dim=args.v4_router_hidden_dim,
+        v4_soft_init_bias=args.v4_soft_init_bias,
     ).to(device)
     print(f"  Params: {sum(p.numel() for p in model.parameters()):,}")
     print(f"  V3 config: variant={args.dmp_variant}, layers={args.num_layers}, "
           f"init_coefs={v3_init_coefs}, reg={args.v3_coef_reg_strength}, "
           f"hard_attn={args.v3_hard_attention}, shared_w_revert={args.v3_shared_w_revert}")
+    if args.dmp_variant == "v4_hard":
+        print(f"  V4 hard router: density_lo={args.v4_density_lo}, "
+              f"density_hi={args.v4_density_hi}")
+    elif args.dmp_variant == "v4_soft":
+        print(f"  V4 soft router: hidden_dim={args.v4_router_hidden_dim}, "
+              f"init_bias={args.v4_soft_init_bias}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=args.weight_decay
@@ -245,9 +266,9 @@ def main():
     model.load_state_dict(torch.load(ckpt_path, map_location=device))
     test_metrics = evaluate(model, test_data, device, args.batch_size)
 
-    # Inspect final V3 op_coef values
+    # Inspect final V3 op_coef values (v3 family includes v4 variants)
     op_coef_log = None
-    if args.dmp_variant == "v3":
+    if args.dmp_variant in ("v3", "v4_hard", "v4_soft"):
         op_coef_log = []
         for i, layer in enumerate(model.agg_layers):
             op_coef_log.append({

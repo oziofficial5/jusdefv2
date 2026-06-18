@@ -33,6 +33,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.model.v3_layer import V3Layer
+from src.model.v4_router import HardDensityRouter, SoftDensityRouter
+
+
+_V3_FAMILY = {"v3", "v4_hard", "v4_soft"}
 
 
 class JusDefLEDGAR(nn.Module):
@@ -50,11 +54,15 @@ class JusDefLEDGAR(nn.Module):
         num_classes=100,
         num_layers=1,
         dropout=0.3,
-        dmp_variant="v3",  # 'v3' uses V3Layer; 'mean' uses simple mean aggregation
+        dmp_variant="v3",  # 'v3', 'mean', 'v4_hard', 'v4_soft'
         v3_init_coefs=(1.0, -1.0, -0.5, 1.0),
         v3_coef_reg_strength=0.01,
         v3_hard_attention=False,
         v3_shared_w_revert=False,
+        v4_density_lo=0.10,
+        v4_density_hi=0.20,
+        v4_router_hidden_dim=32,
+        v4_soft_init_bias=5.0,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -65,8 +73,8 @@ class JusDefLEDGAR(nn.Module):
         # Sentence embedding -> hidden
         self.input_proj = nn.Linear(in_dim, hidden_dim)
 
-        # Aggregation layers
-        if dmp_variant == "v3":
+        # Aggregation layers (v3, v4_hard, v4_soft all build the v3 update)
+        if dmp_variant in _V3_FAMILY:
             self.agg_layers = nn.ModuleList(
                 [
                     V3Layer(
@@ -86,15 +94,43 @@ class JusDefLEDGAR(nn.Module):
         else:
             raise ValueError(f"Unknown dmp_variant: {dmp_variant}")
 
+        # v4 routing module (None for v3 and mean)
+        if dmp_variant == "v4_hard":
+            self.router = HardDensityRouter(v4_density_lo, v4_density_hi)
+        elif dmp_variant == "v4_soft":
+            self.router = SoftDensityRouter(
+                hidden_dim=v4_router_hidden_dim,
+                init_bias=v4_soft_init_bias,
+            )
+        else:
+            self.router = None
+
         # Per-paragraph classifier
         self.classifier = nn.Linear(hidden_dim, num_classes)
         self.dropout = nn.Dropout(dropout)
 
     def v3_coef_regulariser(self):
-        """Sum of per-layer coef regularisers (zero for non-v3 variants)."""
-        if self.dmp_variant != "v3":
+        """Sum of per-layer coef regularisers (zero for non-v3-family variants)."""
+        if self.dmp_variant not in _V3_FAMILY:
             return torch.tensor(0.0, device=next(self.parameters()).device)
         return sum(layer.coef_regulariser() for layer in self.agg_layers)
+
+    def _compute_density_features(self, operators, sent_to_para, num_paragraphs):
+        """Per-paragraph density features for the v4 router.
+
+        Returns:
+            density:    (num_paragraphs,) non-AFF fraction
+            n_non_aff:  (num_paragraphs,) non-AFF sentence count
+            n_total:    (num_paragraphs,) total sentence count
+        """
+        device = operators.device
+        is_non_aff = (operators != 0).float()
+        n_non_aff = torch.zeros(num_paragraphs, device=device)
+        n_total = torch.zeros(num_paragraphs, device=device)
+        n_non_aff.scatter_add_(0, sent_to_para, is_non_aff)
+        n_total.scatter_add_(0, sent_to_para, torch.ones_like(is_non_aff))
+        density = n_non_aff / n_total.clamp(min=1.0)
+        return density, n_non_aff, n_total
 
     def _scatter_mean(self, src, index, dim_size):
         """Scatter mean: out[i] = mean(src[j] for j where index[j] == i)."""
@@ -122,11 +158,12 @@ class JusDefLEDGAR(nn.Module):
         # Project sentence embeddings into hidden space
         h_sent = F.relu(self.input_proj(sent_embs))  # (TotalSents, hidden)
 
-        # Initial paragraph representation: mean of sentences
-        h_para = self._scatter_mean(h_sent, sent_to_para, num_paragraphs)
+        # Initial paragraph representation: mean of sentences (mean baseline)
+        h_mean = self._scatter_mean(h_sent, sent_to_para, num_paragraphs)
+        h_para = h_mean
 
-        if self.dmp_variant == "v3":
-            # Auth types: LEDGAR has no authority structure, use AFF (0) sentinel
+        if self.dmp_variant in _V3_FAMILY:
+            # Accumulate v3 update across V3Layer stack
             auth_types = torch.zeros_like(operators)
             for layer in self.agg_layers:
                 update = layer(
@@ -137,8 +174,22 @@ class JusDefLEDGAR(nn.Module):
                     auth_types,
                     num_paragraphs,
                 )
-                h_para = h_para + update  # residual
-        # "mean" variant: just use h_para as-is (already scatter_mean)
+                h_para = h_para + update  # residual; h_para now carries v3 contribution
+
+            if self.dmp_variant == "v4_hard":
+                density, _, _ = self._compute_density_features(
+                    operators, sent_to_para, num_paragraphs
+                )
+                gate = self.router(density)               # (num_paragraphs, 1) in {0,1}
+                h_para = h_mean + gate * (h_para - h_mean)
+            elif self.dmp_variant == "v4_soft":
+                density, n_non_aff, n_total = self._compute_density_features(
+                    operators, sent_to_para, num_paragraphs
+                )
+                gate = self.router(density, n_non_aff, n_total)  # (num_paragraphs, 1) in (0,1)
+                h_para = h_mean + gate * (h_para - h_mean)
+            # else: plain v3 — h_para already carries the full v3 contribution
+        # "mean" variant: h_para is the scatter_mean
 
         h_para = self.dropout(h_para)
         logits = self.classifier(h_para)
