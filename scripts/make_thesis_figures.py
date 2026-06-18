@@ -285,6 +285,70 @@ def fig4_pareto(data):
 
 
 # ---------------------------------------------------------------------------
+# Figure 5: Bin-sensitivity sweep
+# ---------------------------------------------------------------------------
+
+BIN_SENS_PATH = Path("outputs/logs/ledgar_bin_sensitivity_analysis.json")
+
+
+def fig5_bin_sensitivity():
+    if not BIN_SENS_PATH.is_file():
+        print(f"  SKIP fig5: {BIN_SENS_PATH} not present "
+              f"(run analyse_ledgar_bin_sensitivity.py first)")
+        return
+    with open(BIN_SENS_PATH) as f:
+        data = json.load(f)
+
+    # Display order: symmetric shifts first, then asymmetric
+    display_order = ["8-22", "9-21", "10-20", "11-19", "12-18", "8-15", "15-25"]
+    available = [k for k in display_order if k in data["per_bin"]
+                 and data["per_bin"][k].get("delta_mean") is not None]
+
+    bin_centres = []
+    deltas = []
+    stds = []
+    n_paragraphs = []
+    labels = []
+    for k in available:
+        rec = data["per_bin"][k]
+        bin_centres.append((rec["lo"] + rec["hi"]) / 2 * 100)
+        deltas.append(rec["delta_mean"])
+        stds.append(rec["delta_std"])
+        n_paragraphs.append(rec["n_paragraphs"])
+        labels.append(k + "\\%")
+
+    fig, ax = plt.subplots(figsize=(7.2, 3.6))
+
+    # Highlight zero line
+    ax.axhline(0, color="grey", lw=0.7, linestyle="--", zorder=1)
+
+    # Bars coloured by canonical-or-not
+    colors = [C_HIGHLIGHT if k == "10-20" else C_V3 for k in available]
+    x = np.arange(len(available))
+    bars = ax.bar(x, deltas, yerr=stds, capsize=4, color=colors,
+                  edgecolor="black", lw=0.5)
+
+    # Annotate N per bar
+    ymax = max(d + s for d, s in zip(deltas, stds)) * 1.15
+    for i, (d, s, n) in enumerate(zip(deltas, stds, n_paragraphs)):
+        ax.text(i, d + s + 0.005, f"N={n}", ha="center", va="bottom",
+                fontsize=8.5)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_xlabel("non-AFF density bin (\\% range)")
+    ax.set_ylabel("$\\Delta$ macro-F1 (v3 $-$ mean), 5-seed mean $\\pm$ std")
+    ax.set_title("Bin-sensitivity of the v3 win around the 10--20\\% operating regime")
+    ax.set_ylim(min(0, min(d - s for d, s in zip(deltas, stds)) * 1.3), ymax)
+
+    fig.tight_layout()
+    out = OUT_DIR / "fig5_bin_sensitivity.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+# ---------------------------------------------------------------------------
 # Entrypoint
 # ---------------------------------------------------------------------------
 
@@ -300,6 +364,7 @@ def main():
     fig2_density_stratified_bars(data)
     fig3_inversion(data)
     fig4_pareto(data)
+    fig5_bin_sensitivity()
     print(f"\nAll figures written to {OUT_DIR.resolve()}/")
 
 
