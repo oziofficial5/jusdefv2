@@ -18,6 +18,10 @@ from torch_geometric.nn import HeteroConv, SAGEConv, Linear
 from src.model.authority_scorer import AuthorityScorer
 from src.model.dmp_layer import DMPLayer
 from src.model.v3_layer import V3Layer
+from src.model.v4_router import HardDensityRouter, SoftDensityRouter
+
+
+_V3_FAMILY = {"v3", "v4_hard", "v4_soft"}
 
 
 class JusDef(nn.Module):
@@ -30,13 +34,19 @@ class JusDef(nn.Module):
         temperature=5.0,
         use_dmp=True,
         use_authority=True,
-        dmp_variant="hard",  # "hard" = v2 DMPLayer, "v3" = signal-preserving V3Layer
+        dmp_variant="hard",  # "hard" = v2 DMPLayer, "v3" = signal-preserving V3Layer,
+                              # "v4_hard"/"v4_soft" = density-routed v3 (EUR-Lex port)
+        v4_density_lo=0.10,
+        v4_density_hi=0.20,
+        v4_router_hidden_dim=32,
+        v4_soft_init_bias=5.0,
     ):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.use_dmp = use_dmp
         self.use_authority = use_authority
         self.dmp_variant = dmp_variant
+        self.num_layers = num_layers
 
         node_types = ["doc", "sec", "conc", "auth", "label"]
         self.input_proj = nn.ModuleDict(
@@ -47,7 +57,7 @@ class JusDef(nn.Module):
             self.authority_scorer = AuthorityScorer(type_emb_dim=8)
 
         if use_dmp:
-            if dmp_variant == "v3":
+            if dmp_variant in _V3_FAMILY:
                 self.dmp_layers = nn.ModuleList(
                     [
                         V3Layer(hidden_dim, hidden_dim, dropout=dropout)
@@ -61,6 +71,25 @@ class JusDef(nn.Module):
                         for _ in range(num_layers)
                     ]
                 )
+
+        # v4 routing: per-concept gating between V3Layer (in regime) and a
+        # parallel operator-agnostic SAGEConv path (out of regime). The
+        # SAGEConv plays the role of the "mean baseline" path that LEDGAR
+        # gets for free from scatter_mean.
+        if dmp_variant in ("v4_hard", "v4_soft"):
+            self.r2_mean_convs = nn.ModuleList(
+                [SAGEConv(hidden_dim, hidden_dim) for _ in range(num_layers)]
+            )
+            if dmp_variant == "v4_hard":
+                self.router = HardDensityRouter(v4_density_lo, v4_density_hi)
+            else:
+                self.router = SoftDensityRouter(
+                    hidden_dim=v4_router_hidden_dim,
+                    init_bias=v4_soft_init_bias,
+                )
+        else:
+            self.r2_mean_convs = None
+            self.router = None
 
         self.hetero_convs = nn.ModuleList()
         self.hetero_conv_edge_types = []
@@ -149,7 +178,7 @@ class JusDef(nn.Module):
                     concept_ids = dst_ids
                     num_conc = h["conc"].size(0)
 
-                    if self.dmp_variant == "v3":
+                    if self.dmp_variant in _V3_FAMILY:
                         # V3 needs current dst embeddings + auth_type integers
                         auth_type_int = edge_attr_dict[r2_key].get(
                             "auth_type", torch.zeros_like(r2_ops)
@@ -158,7 +187,30 @@ class JusDef(nn.Module):
                             src_embs, h["conc"], dst_ids, r2_ops,
                             auth_type_int, num_conc,
                         )
-                        h["conc"] = h["conc"] + dmp_out
+
+                        if self.dmp_variant == "v3":
+                            h["conc"] = h["conc"] + dmp_out
+                        else:
+                            # v4: gate the v3 update against an operator-agnostic
+                            # SAGEConv "mean path" on the same r2 edges.
+                            sage_msg = self.r2_mean_convs[layer_idx](
+                                (h["sec"], h["conc"]), r2_ei,
+                            )
+                            sage_msg = self.dropout(F.relu(sage_msg))
+
+                            # Per-concept density (over incoming r2 edges)
+                            density, n_non_aff, n_total = _per_concept_density(
+                                r2_ops, dst_ids, num_conc, device=h["conc"].device,
+                            )
+                            if self.dmp_variant == "v4_hard":
+                                gate = self.router(density)
+                            else:
+                                gate = self.router(density, n_non_aff, n_total)
+
+                            # Mix: gate * V3 update + (1-gate) * mean update,
+                            # both added to the post-HeteroConv concept state.
+                            h["conc"] = h["conc"] + gate * dmp_out + (1.0 - gate) * sage_msg
+
                         active, defeated = self.dmp_layers[
                             layer_idx
                         ].get_active_defeated_embeddings(
@@ -200,8 +252,31 @@ class JusDef(nn.Module):
         return doc_emb @ label_embs.T
 
     def v3_coef_regulariser(self):
-        """Sum of per-layer signed-coefficient drift regularisers (v3 only)."""
-        if not self.use_dmp or self.dmp_variant != "v3":
+        """Sum of per-layer signed-coefficient drift regularisers (v3 family)."""
+        if not self.use_dmp or self.dmp_variant not in _V3_FAMILY:
             return None
         total = sum(layer.coef_regulariser() for layer in self.dmp_layers)
         return total
+
+
+def _per_concept_density(r2_ops, dst_ids, num_conc, device):
+    """Aggregate non-AFF density per concept node from the r2 edge list.
+
+    Args:
+        r2_ops:   (E,) integer operator id per r2 edge (0=AFF, 1..3=non-AFF)
+        dst_ids:  (E,) destination concept index per r2 edge
+        num_conc: int total number of concept nodes
+        device:   tensor device
+    Returns:
+        density:   (num_conc,) non-AFF fraction; concepts with no r2 edges
+                   get density 0.0 (and will be routed to mean path).
+        n_non_aff: (num_conc,)
+        n_total:   (num_conc,)
+    """
+    is_non_aff = (r2_ops != 0).float()
+    n_non_aff = torch.zeros(num_conc, device=device)
+    n_total = torch.zeros(num_conc, device=device)
+    n_non_aff.scatter_add_(0, dst_ids, is_non_aff)
+    n_total.scatter_add_(0, dst_ids, torch.ones_like(is_non_aff))
+    density = n_non_aff / n_total.clamp(min=1.0)
+    return density, n_non_aff, n_total

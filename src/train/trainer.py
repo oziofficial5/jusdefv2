@@ -159,8 +159,15 @@ def train_jusdef(config):
         use_dmp=config.get("use_dmp", True),
         use_authority=config.get("use_authority", True),
         dmp_variant=config.get("dmp_variant", "hard"),
+        v4_density_lo=config.get("v4_density_lo", 0.10),
+        v4_density_hi=config.get("v4_density_hi", 0.20),
+        v4_router_hidden_dim=config.get("v4_router_hidden_dim", 32),
+        v4_soft_init_bias=config.get("v4_soft_init_bias", 5.0),
     ).to(device)
     print(f"  Model params: {sum(p.numel() for p in model.parameters()):,}")
+    if config.get("dmp_variant") in ("v4_hard", "v4_soft"):
+        print(f"  V4 EUR-Lex routing: variant={config['dmp_variant']}, "
+              f"lo={config.get('v4_density_lo')}, hi={config.get('v4_density_hi')}")
 
     optimizer = torch.optim.AdamW(
         model.parameters(),

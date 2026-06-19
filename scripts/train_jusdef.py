@@ -31,9 +31,18 @@ def main():
     )
     parser.add_argument(
         "--dmp_variant", type=str, default="hard",
-        choices=["hard", "v3"],
-        help="Defeat aggregator variant: 'hard' = v2 DMP, 'v3' = signal-preserving",
+        choices=["hard", "v3", "v4_hard", "v4_soft"],
+        help="Defeat aggregator variant: 'hard' = v2 DMP, 'v3' = signal-preserving, "
+             "'v4_hard' = density-routed (hard gate), 'v4_soft' = density-routed (learned gate)",
     )
+    parser.add_argument("--v4_density_lo", type=float, default=0.10,
+                        help="v4_hard: lower density bound for routing to v3 path")
+    parser.add_argument("--v4_density_hi", type=float, default=0.20,
+                        help="v4_hard: upper density bound for routing to v3 path")
+    parser.add_argument("--v4_router_hidden_dim", type=int, default=32,
+                        help="v4_soft: hidden dim of routing MLP")
+    parser.add_argument("--v4_soft_init_bias", type=float, default=5.0,
+                        help="v4_soft: initial bias for the routing logit")
     args = parser.parse_args()
 
     print(f"Loading graphs from {args.graph_dir}...")
@@ -82,6 +91,10 @@ def main():
         "use_dmp": not args.no_dmp,
         "use_authority": not args.no_authority,
         "dmp_variant": args.dmp_variant,
+        "v4_density_lo": args.v4_density_lo,
+        "v4_density_hi": args.v4_density_hi,
+        "v4_router_hidden_dim": args.v4_router_hidden_dim,
+        "v4_soft_init_bias": args.v4_soft_init_bias,
         "train_graphs": train_graphs,
         "val_graphs": val_graphs,
         "test_graphs": test_graphs,
