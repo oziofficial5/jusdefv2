@@ -64,8 +64,9 @@ from src.model.dmp_layer import compute_defeat_mask
 
 OPERATOR_NAMES = ["AFF", "NEG", "EXC", "OVR"]
 
-V2_TAGS = ["v2_keyword", "v2_neural"]
-V3_TAGS = ["v3_eurlex"]
+# Checkpoint tag mapping for v2/v3 EUR-Lex (file naming on Ampere)
+V2_TAGS = ["full", "full_neural"]    # v2 keyword and v2 neural
+V3_TAGS = ["v3_pilot"]               # v3 EUR-Lex
 SEEDS = [42, 43, 44]
 
 
@@ -107,16 +108,30 @@ def measure_w_op_norms(model):
     return norms_per_layer
 
 
+def _get_edge_attr(g, edge_type, attr_name):
+    """Defensive accessor: try multiple HeteroData edge-attr access patterns."""
+    # Pattern A: explicit edge_attr_dict attached to the graph
+    if hasattr(g, "edge_attr_dict"):
+        d = g.edge_attr_dict
+        if edge_type in d and isinstance(d[edge_type], dict) and attr_name in d[edge_type]:
+            return d[edge_type][attr_name]
+    # Pattern B: direct attribute on the edge store
+    try:
+        store = g[edge_type]
+    except (KeyError, AttributeError):
+        return None
+    if hasattr(store, attr_name):
+        return getattr(store, attr_name)
+    return None
+
+
 def measure_operator_frequency(graphs, max_graphs=2000):
     """Count r2 mention edges per operator across (a subset of) training graphs."""
     r2_key = ("sec", "mentions", "conc")
     counts = np.zeros(4, dtype=np.int64)
     n_used = 0
     for g in graphs[:max_graphs]:
-        attrs = g.edge_attr_dict if hasattr(g, "edge_attr_dict") else None
-        if attrs is None or r2_key not in attrs:
-            continue
-        ops = attrs[r2_key].get("operator")
+        ops = _get_edge_attr(g, r2_key, "operator")
         if ops is None:
             continue
         ops_t = ops if isinstance(ops, torch.Tensor) else torch.tensor(ops)
@@ -141,26 +156,17 @@ def measure_ste_saturation(model, graphs, device, max_graphs=500):
 
     model.eval()
     for g in graphs[:max_graphs]:
-        # Move to device, replicate the JusDef forward
-        x_dict = {nt: x.to(device) for nt, x in g.x_dict.items()}
         edge_index_dict = {k: v.to(device) for k, v in g.edge_index_dict.items()}
-        edge_attr_dict = {}
-        if hasattr(g, "edge_attr_dict"):
-            for k, v in g.edge_attr_dict.items():
-                edge_attr_dict[k] = {
-                    f: t.to(device) if isinstance(t, torch.Tensor) else t
-                    for f, t in v.items()
-                }
-
         if r2_key not in edge_index_dict or edge_index_dict[r2_key].size(1) == 0:
             continue
         r2_ei = edge_index_dict[r2_key]
-        if r2_key not in edge_attr_dict:
-            continue
-        ops = edge_attr_dict[r2_key].get("operator")
-        pri = edge_attr_dict[r2_key].get("priority")
+
+        ops = _get_edge_attr(g, r2_key, "operator")
+        pri = _get_edge_attr(g, r2_key, "priority")
         if ops is None or pri is None:
             continue
+        ops = ops.to(device) if isinstance(ops, torch.Tensor) else torch.tensor(ops, device=device)
+        pri = pri.to(device) if isinstance(pri, torch.Tensor) else torch.tensor(pri, device=device, dtype=torch.float32)
 
         # Replicate the same priority_gap computation as DMPLayer
         defeat_score = ops.float() * 1000.0 + pri
@@ -259,13 +265,15 @@ def main():
 
     # ----- v2 analysis (failure modes 1 + 3) -----
     for tag in V2_TAGS:
-        results[tag] = {}
+        # Display name maps "full" -> "v2_keyword", "full_neural" -> "v2_neural"
+        display = {"full": "v2_keyword", "full_neural": "v2_neural"}.get(tag, tag)
+        results[display] = {}
         for seed in SEEDS:
             ckpt = ckpt_dir / f"jusdef_{tag}_s{seed}.pt"
             if not ckpt.is_file():
                 print(f"  [skip] {ckpt} missing")
                 continue
-            print(f"\n--- {tag} seed {seed} ---")
+            print(f"\n--- {display} (file tag '{tag}') seed {seed} ---")
             model = build_v2(device, dmp_variant="hard")
             try:
                 load_state(model, ckpt)
@@ -286,7 +294,7 @@ def main():
             else:
                 print("  STE: no r2 edges found in test graphs")
 
-            results[tag][seed] = {
+            results[display][seed] = {
                 "w_op_norms_per_layer": w_norms,
                 "ste_saturation": ste,
             }
