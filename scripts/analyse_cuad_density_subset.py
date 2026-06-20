@@ -29,10 +29,13 @@ from src.model.jusdef_ledgar import JusDefLEDGAR
 SEEDS = [42, 43, 44, 45, 46]
 
 VARIANTS = {
-    "mean":     ({"dmp_variant": "mean"}, "cuad_baseline_mean"),
-    "v3_pilot": ({"dmp_variant": "v3"},   "cuad_v3"),
+    "mean":     ({"dmp_variant": "mean"}, "ledgar_cuad_baseline_mean"),
+    "v3_pilot": ({"dmp_variant": "v3"},   "ledgar_cuad_v3"),
 }
 
+# CUAD density distribution is bimodal ({0%} and {>=20%}); we keep the LEDGAR
+# bin schema for cross-comparison but additionally report a coarse "dense"
+# bin (>=20%) that holds the bulk of the non-AFF data on CUAD.
 BINS = [
     ("all",       0.00, 1.01),
     ("0%",        0.00, 0.001),
@@ -42,6 +45,7 @@ BINS = [
     ("20-30%",    0.20, 0.30),
     ("30-50%",    0.30, 0.50),
     ("50%+",      0.50, 1.01),
+    (">=20%",     0.20, 1.01),  # coarse dense bin -- catches CUAD's bulk
 ]
 
 
