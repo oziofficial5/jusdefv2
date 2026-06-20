@@ -273,7 +273,7 @@ def main():
             mask = (density >= lo) & (density < hi)
             f1, n = stratified_macro_f1(preds, labels, mask)
             per_bin[name] = {"n_documents": n, "macro_f1": f1}
-        results["per_variant"]["rgcn_h512"][seed] = per_bin
+        results["per_variant"]["rgcn"][seed] = per_bin
         print(f"    all={per_bin['all']['macro_f1']:.4f}  "
               f"10-20%={per_bin['10-20%']['macro_f1']} "
               f"(n={per_bin['10-20%']['n_documents']})  "
