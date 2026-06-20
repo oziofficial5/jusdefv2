@@ -34,9 +34,43 @@ if PROJECT_ROOT not in sys.path:
 from src.model.jusdef import JusDef
 from src.model.baselines import RGCN, tune_threshold
 from src.train.trainer import forward_one_graph
+import torch.nn.functional as F
 
 
 SEEDS = [42, 43, 44]
+
+
+# Patch RGCN.forward to be compatible with newer torch_geometric versions
+# (older code did `if k in conv.convs` with k a tuple, which now triggers
+#  AttributeError because newer ModuleDict tries to call key.replace on it).
+def _patched_rgcn_forward(self, x_dict, edge_index_dict):
+    h = {}
+    for nt in x_dict:
+        if nt in self.input_proj:
+            h[nt] = F.relu(self.input_proj[nt](x_dict[nt]))
+        else:
+            h[nt] = x_dict[nt]
+    for conv in self.convs:
+        valid_edges = {k: v for k, v in edge_index_dict.items() if v.size(1) > 0}
+        if valid_edges:
+            try:
+                new_h = conv(h, valid_edges)
+            except (KeyError, AttributeError):
+                continue
+            for k in new_h:
+                h[k] = self.dropout(F.relu(new_h[k]))
+    h = {k: self.out_proj(v) for k, v in h.items()}
+    return h
+
+RGCN.forward = _patched_rgcn_forward
+
+
+def detect_rgcn_hidden_dim(state):
+    """Read hidden_dim from a checkpoint state dict (handles h=512 and h=768)."""
+    for key in ("input_proj.doc.weight", "input_proj.sec.weight"):
+        if key in state:
+            return state[key].shape[0]
+    return 512  # fallback
 
 BINS = [
     ("all",     0.00, 1.01),
@@ -206,19 +240,21 @@ def main():
             torch.cuda.empty_cache()
 
     # ====== R-GCN baseline ======
-    print("\n=== rgcn_h512 ===")
-    results["per_variant"]["rgcn_h512"] = {}
+    print("\n=== rgcn ===")
+    results["per_variant"]["rgcn"] = {}
     for seed in SEEDS:
         ckpt = ckpt_dir / f"best_rgcn_seed{seed}.pt"
         if not ckpt.is_file():
             print(f"  [skip] s{seed}: {ckpt} missing")
             continue
         try:
-            model = RGCN(in_dim=768, hidden_dim=512, out_dim=512,
-                         num_layers=2, dropout=0.3).to(device)
             state = torch.load(ckpt, map_location=device)
             if isinstance(state, dict) and "model_state" in state:
                 state = state["model_state"]
+            hd = detect_rgcn_hidden_dim(state)
+            print(f"  s{seed}: auto-detected hidden_dim={hd}")
+            model = RGCN(in_dim=768, hidden_dim=hd, out_dim=hd,
+                         num_layers=2, dropout=0.3).to(device)
             model.load_state_dict(state, strict=False)
             val_logits = collect_logits_rgcn(model, val_graphs, device)
             val_probs = 1.0 / (1.0 + np.exp(-np.clip(val_logits, -40, 40)))
@@ -247,7 +283,7 @@ def main():
             torch.cuda.empty_cache()
 
     # ====== Deltas v3 - R-GCN ======
-    if results["per_variant"]["v3_pilot"] and results["per_variant"]["rgcn_h512"]:
+    if results["per_variant"]["v3_pilot"] and results["per_variant"]["rgcn"]:
         print("\n" + "=" * 70)
         print(" EUR-LEX WITHIN-CORPUS DENSITY-STRATIFIED DELTAS (v3 - R-GCN)")
         print("=" * 70)
@@ -257,7 +293,7 @@ def main():
             n_docs = None
             for seed in SEEDS:
                 v3 = results["per_variant"]["v3_pilot"].get(seed, {}).get(name)
-                rg = results["per_variant"]["rgcn_h512"].get(seed, {}).get(name)
+                rg = results["per_variant"]["rgcn"].get(seed, {}).get(name)
                 if v3 and rg and v3["macro_f1"] is not None and rg["macro_f1"] is not None:
                     deltas.append(v3["macro_f1"] - rg["macro_f1"])
                     n_docs = v3["n_documents"]
