@@ -365,7 +365,329 @@ def main():
     fig3_inversion(data)
     fig4_pareto(data)
     fig5_bin_sensitivity()
+    fig10_v4_variants_comparison()
+    fig11_v4_twostage_per_seed_deltas()
+    fig14_counterfactual_per_bin_heatmap()
+    fig15_v4_training_curves()
+    fig16_cross_corpus_density()
+    fig18_confusion_10_20()
     print(f"\nAll figures written to {OUT_DIR.resolve()}/")
+
+
+# ---------------------------------------------------------------------------
+# Figure 10: v4 variants comparison (aggregate vs 10-20% bin)
+# ---------------------------------------------------------------------------
+
+V4_ANALYSIS_PATH = Path("outputs/logs/ledgar_v4_analysis.json")
+
+
+def fig10_v4_variants_comparison():
+    if not V4_ANALYSIS_PATH.is_file():
+        print(f"  SKIP fig10: {V4_ANALYSIS_PATH} missing")
+        return
+    with open(V4_ANALYSIS_PATH) as f:
+        d = json.load(f)
+    agg = d["aggregate"]
+
+    variants = ["mean", "v3_pilot", "v4_hard", "v4_soft", "v4_twostage"]
+    labels = ["mean", "v3", "v4\\_hard", "v4\\_soft", "v4\\_twostage"]
+    colors = ["#0072B2", "#D55E00", "#999999", "#009E73", "#CC79A7"]
+
+    fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), sharey=True)
+    for ax, bin_key, title in [(axes[0], "all", "Aggregate test set"),
+                                (axes[1], "10_20", "10--20\\% operating regime")]:
+        means = [agg[v][bin_key]["mean"] for v in variants]
+        stds  = [agg[v][bin_key]["std"]  for v in variants]
+        x = np.arange(len(variants))
+        ax.bar(x, means, yerr=stds, capsize=4, color=colors,
+               edgecolor="black", lw=0.5)
+        ax.set_xticks(x)
+        ax.set_xticklabels(labels, rotation=15, ha="right")
+        ax.set_title(title)
+    axes[0].set_ylabel("test macro-F1 (5-seed mean $\\pm$ std)")
+    axes[1].axhline(agg["v3_pilot"]["10_20"]["mean"], color="grey",
+                    lw=0.7, linestyle=":", zorder=1)
+    fig.suptitle("v4 variants comparison on LEDGAR", fontsize=11)
+    fig.tight_layout()
+    out = OUT_DIR / "fig10_v4_variants_comparison.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+# ---------------------------------------------------------------------------
+# Figure 11: v4_twostage vs v3 per-seed deltas on 10-20% bin
+# ---------------------------------------------------------------------------
+
+def fig11_v4_twostage_per_seed_deltas():
+    if not V4_ANALYSIS_PATH.is_file():
+        print(f"  SKIP fig11: {V4_ANALYSIS_PATH} missing")
+        return
+    with open(V4_ANALYSIS_PATH) as f:
+        d = json.load(f)
+    per_seed = d["per_seed"]
+    seeds = sorted(int(s) for s in per_seed["v3_pilot"].keys())
+    deltas = []
+    for s in seeds:
+        v3 = per_seed["v3_pilot"][str(s)]["10_20"]["macro_f1"]
+        v4 = per_seed["v4_twostage"][str(s)]["10_20"]["macro_f1"]
+        if v3 is None or v4 is None:
+            deltas.append(None)
+        else:
+            deltas.append(v4 - v3)
+    if all(x is None for x in deltas):
+        print("  SKIP fig11: no v4_twostage data")
+        return
+
+    fig, ax = plt.subplots(figsize=(6.0, 3.4))
+    x = np.arange(len(seeds))
+    colors = ["#0072B2" if d is None or d >= 0 else "#D55E00" for d in deltas]
+    bars = ax.bar(x, [d if d is not None else 0 for d in deltas],
+                  color=colors, edgecolor="black", lw=0.5)
+    ax.axhline(0, color="black", lw=0.8)
+    for i, d in enumerate(deltas):
+        if d is None:
+            continue
+        ymax = max([x for x in deltas if x is not None]) or 0.05
+        y_off = 0.003 if d >= 0 else -0.005
+        sign = "+" if d >= 0 else "-"
+        ax.text(i, d + y_off, f"{sign}{abs(d):.4f}", ha="center",
+                va="bottom" if d >= 0 else "top", fontsize=9)
+    ax.set_xticks(x)
+    ax.set_xticklabels([f"seed {s}" for s in seeds])
+    ax.set_ylabel("$\\Delta$ macro-F1 (v4\\_twostage $-$ v3) on 10--20\\% bin")
+    ax.set_title("Per-seed regime gain of v4\\_twostage over v3")
+    fig.tight_layout()
+    out = OUT_DIR / "fig11_v4_twostage_per_seed_deltas.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+# ---------------------------------------------------------------------------
+# Figure 14: counterfactual sensitivity per-density-bin heatmap
+# ---------------------------------------------------------------------------
+
+CF_PATH = Path("outputs/logs/ledgar_counterfactual_sensitivity.json")
+
+
+def fig14_counterfactual_per_bin_heatmap():
+    if not CF_PATH.is_file():
+        print(f"  SKIP fig14: {CF_PATH} missing")
+        return
+    with open(CF_PATH) as f:
+        d = json.load(f)
+    per_seed = d["per_seed"]
+
+    variants = [v for v in ["mean", "v3_pilot", "v4_soft", "v4_hard", "v4_twostage"]
+                if v in per_seed and per_seed[v]]
+    labels = {"mean": "mean", "v3_pilot": "v3",
+              "v4_soft": "v4\\_soft", "v4_hard": "v4\\_hard",
+              "v4_twostage": "v4\\_twostage"}
+    bin_names = ["<10%", "10-20%", "20-50%", ">=50%"]
+    bin_labels = ["<10\\%", "10--20\\%", "20--50\\%", "$\\geq$50\\%"]
+
+    # 5-seed mean true_shift per variant per bin
+    mat = np.full((len(variants), len(bin_names)), np.nan)
+    for i, v in enumerate(variants):
+        for j, b in enumerate(bin_names):
+            vals = []
+            for seed_str, rec in per_seed[v].items():
+                if rec is None:
+                    continue
+                pb = rec.get("per_density_bin", {})
+                if b in pb and pb[b].get("mean_true_shift") is not None:
+                    vals.append(pb[b]["mean_true_shift"])
+            if vals:
+                mat[i, j] = float(np.mean(vals))
+
+    fig, ax = plt.subplots(figsize=(6.5, 3.4))
+    vmax = max(0.05, float(np.nanmax(mat) * 1.05))
+    im = ax.imshow(mat, cmap="YlOrRd", aspect="auto", vmin=0, vmax=vmax)
+    for i in range(mat.shape[0]):
+        for j in range(mat.shape[1]):
+            if not np.isnan(mat[i, j]):
+                color = "white" if mat[i, j] > vmax * 0.6 else "black"
+                ax.text(j, i, f"{mat[i, j]:.3f}", ha="center", va="center",
+                        fontsize=8.5, color=color)
+    ax.set_xticks(range(len(bin_names)))
+    ax.set_xticklabels(bin_labels)
+    ax.set_yticks(range(len(variants)))
+    ax.set_yticklabels([labels.get(v, v) for v in variants])
+    ax.set_xlabel("non-AFF density bin")
+    ax.set_title("Counterfactual sensitivity ($|\\Delta P(\\mathrm{true})|$) by density bin")
+    fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+    # Highlight 10-20% column
+    ax.add_patch(plt.Rectangle((1 - 0.5, -0.5), 1, len(variants),
+                                fill=False, edgecolor="#E69F00", lw=2.2))
+    fig.tight_layout()
+    out = OUT_DIR / "fig14_counterfactual_per_bin_heatmap.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+# ---------------------------------------------------------------------------
+# Figure 15: training curves -- single-stage v4_hard vs v4_twostage
+# ---------------------------------------------------------------------------
+
+import re
+
+def _parse_training_log(path):
+    """Extract (epoch, val_macro) pairs from a training log."""
+    if not path.is_file():
+        return None
+    pat = re.compile(r"Epoch\s+(\d+)[^|]*\|\s*loss=[\d.]+\s*\|\s*val_macro=([\d.]+)")
+    epochs, vals = [], []
+    for line in path.read_text(errors="ignore").splitlines():
+        m = pat.search(line)
+        if m:
+            epochs.append(int(m.group(1)))
+            vals.append(float(m.group(2)))
+    if not epochs:
+        return None
+    return epochs, vals
+
+
+def fig15_v4_training_curves():
+    candidates = [
+        ("v4\\_hard (single-stage)", Path("outputs/logs/v4_hard_s42.log"),    "#999999"),
+        ("v4\\_twostage",            Path("outputs/logs/ledgar_v4_twostage_s42.log"), "#CC79A7"),
+        ("v3 (reference)",           Path("outputs/logs/d3_v3_pilot_s42.log"), "#D55E00"),
+    ]
+    curves = []
+    for label, p, color in candidates:
+        parsed = _parse_training_log(p)
+        if parsed is not None:
+            curves.append((label, parsed[0], parsed[1], color))
+    if not curves:
+        print(f"  SKIP fig15: no training-log files found")
+        return
+
+    fig, ax = plt.subplots(figsize=(6.5, 3.6))
+    for label, epochs, vals, color in curves:
+        ax.plot(epochs, vals, marker="o", markersize=3, lw=1.2, color=color,
+                label=label)
+    ax.set_xlabel("epoch")
+    ax.set_ylabel("validation macro-F1")
+    ax.set_title("Training trajectories: single-stage vs two-stage v4 vs v3")
+    ax.legend(loc="lower right", frameon=False)
+    ax.grid(True, alpha=0.25, linestyle=":")
+    fig.tight_layout()
+    out = OUT_DIR / "fig15_v4_training_curves.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+# ---------------------------------------------------------------------------
+# Figure 16: cross-corpus density histograms
+# ---------------------------------------------------------------------------
+
+CORPUS_DENSITY_PATH = Path("outputs/logs/cross_corpus_density.json")
+
+
+def fig16_cross_corpus_density():
+    if not CORPUS_DENSITY_PATH.is_file():
+        print(f"  SKIP fig16: {CORPUS_DENSITY_PATH} missing -- "
+              f"run scripts/analyse_cross_corpus_density.py first")
+        return
+    with open(CORPUS_DENSITY_PATH) as f:
+        d = json.load(f)
+    corpora = [c for c in ["EUR-Lex", "ECtHR", "LEDGAR"] if c in d]
+    if not corpora:
+        return
+
+    fig, axes = plt.subplots(1, len(corpora), figsize=(3.4 * len(corpora), 3.2),
+                              sharey=False)
+    if len(corpora) == 1:
+        axes = [axes]
+    colors = {"EUR-Lex": "#0072B2", "ECtHR": "#009E73", "LEDGAR": "#D55E00"}
+    for ax, name in zip(axes, corpora):
+        densities = np.array(d[name]["densities"])
+        ax.hist(densities, bins=40, color=colors.get(name, "#999999"),
+                edgecolor="black", lw=0.3, alpha=0.85)
+        # Highlight 10-20% operating regime
+        ax.axvspan(0.10, 0.20, color="#E69F00", alpha=0.18)
+        ax.set_title(f"{name}\n(n={d[name]['n_documents']}, "
+                     f"mean={d[name]['mean_density']*100:.2f}\\%)",
+                     fontsize=9.5)
+        ax.set_xlabel("non-AFF density")
+        ax.set_xlim(0, max(0.3, np.percentile(densities, 99) * 1.05))
+        ax.set_yscale("log")
+    axes[0].set_ylabel("\\# documents (log scale)")
+    fig.suptitle("Cross-corpus non-AFF density distributions\n"
+                 "(highlighted band = 10--20\\% operating regime)",
+                 fontsize=10)
+    fig.tight_layout()
+    out = OUT_DIR / "fig16_cross_corpus_density.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
+
+
+# ---------------------------------------------------------------------------
+# Figure 18: 10-20% bin confusion-style: per-paragraph correctness map
+# ---------------------------------------------------------------------------
+
+PRED_PATH = Path("outputs/logs/predictions_10_20_bin.json")
+
+
+def fig18_confusion_10_20():
+    if not PRED_PATH.is_file():
+        print(f"  SKIP fig18: {PRED_PATH} missing -- "
+              f"run scripts/dump_predictions_10_20.py first")
+        return
+    with open(PRED_PATH) as f:
+        d = json.load(f)
+    truths = d["true_labels"]
+    n = len(truths)
+
+    variants = [v for v in ["mean", "v3_pilot", "v4_twostage"] if v in d]
+    if not variants:
+        return
+    # For each variant, majority vote across 5 seeds per paragraph -> single prediction
+    majority = {}
+    for v in variants:
+        seed_preds = d[v]
+        if not seed_preds:
+            continue
+        seeds = sorted(seed_preds.keys(), key=lambda s: int(s))
+        per_para = list(zip(*(seed_preds[s] for s in seeds)))
+        majority[v] = [max(set(votes), key=votes.count) for votes in per_para]
+
+    # Build agreement matrix: correctness rows v3 vs v4_twostage
+    if "v3_pilot" not in majority or "v4_twostage" not in majority:
+        print("  SKIP fig18: need v3_pilot and v4_twostage majority predictions")
+        return
+
+    v3_correct = np.array([majority["v3_pilot"][i] == truths[i] for i in range(n)])
+    v4_correct = np.array([majority["v4_twostage"][i] == truths[i] for i in range(n)])
+    both = (v3_correct & v4_correct).sum()
+    only_v3 = (v3_correct & ~v4_correct).sum()
+    only_v4 = (~v3_correct & v4_correct).sum()
+    neither = (~v3_correct & ~v4_correct).sum()
+
+    fig, ax = plt.subplots(figsize=(4.5, 4.0))
+    mat = np.array([[both, only_v3], [only_v4, neither]])
+    im = ax.imshow(mat, cmap="Blues", vmin=0, vmax=mat.max() * 1.05)
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, str(mat[i, j]), ha="center", va="center",
+                    fontsize=14, color="white" if mat[i, j] > mat.max() * 0.5 else "black")
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["v3 correct", "v3 wrong"])
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["v4\\_twostage correct", "v4\\_twostage wrong"])
+    ax.set_title(f"Agreement on the 10--20\\% bin (n={n} paragraphs)\n"
+                 f"v4\\_twostage rescues {only_v4} that v3 got wrong; "
+                 f"loses {only_v3} that v3 got right.",
+                 fontsize=9)
+    fig.tight_layout()
+    out = OUT_DIR / "fig18_confusion_10_20.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
 
 
 if __name__ == "__main__":
