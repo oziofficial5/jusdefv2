@@ -44,17 +44,19 @@ SEEDS = [42, 43, 44, 45, 46]
 
 # variant_tag -> JusDefLEDGAR kwargs (excluding hidden_dim/in_dim/num_classes/num_layers)
 VARIANTS = {
-    "mean":      {"dmp_variant": "mean"},
-    "v3_pilot":  {"dmp_variant": "v3"},
-    "v4_hard":   {"dmp_variant": "v4_hard", "v4_density_lo": 0.10, "v4_density_hi": 0.20},
-    "v4_soft":   {"dmp_variant": "v4_soft"},
+    "mean":          {"dmp_variant": "mean"},
+    "v3_pilot":      {"dmp_variant": "v3"},
+    "v4_hard":       {"dmp_variant": "v4_hard", "v4_density_lo": 0.10, "v4_density_hi": 0.20},
+    "v4_soft":       {"dmp_variant": "v4_soft"},
+    "v4_twostage":   {"dmp_variant": "v4_hard", "v4_density_lo": 0.10, "v4_density_hi": 0.20},
 }
 
 TAG_FILE_PREFIX = {
-    "mean":      "baseline_mean",
-    "v3_pilot":  "v3_pilot",
-    "v4_hard":   "v4_hard",
-    "v4_soft":   "v4_soft",
+    "mean":          "baseline_mean",
+    "v3_pilot":      "v3_pilot",
+    "v4_hard":       "v4_hard",
+    "v4_soft":       "v4_soft",
+    "v4_twostage":   "v4_twostage",
 }
 
 BINS = [

@@ -57,12 +57,15 @@ SEEDS = [42, 43, 44, 45, 46]
 
 # variant_tag -> JusDefLEDGAR kwargs and file prefix
 VARIANTS = {
-    "mean":      ({"dmp_variant": "mean"},              "baseline_mean"),
-    "v3_pilot":  ({"dmp_variant": "v3"},                "v3_pilot"),
-    "v4_soft":   ({"dmp_variant": "v4_soft"},           "v4_soft"),
-    "v4_hard":   ({"dmp_variant": "v4_hard",
-                   "v4_density_lo": 0.10,
-                   "v4_density_hi": 0.20},              "v4_hard"),
+    "mean":          ({"dmp_variant": "mean"},              "baseline_mean"),
+    "v3_pilot":      ({"dmp_variant": "v3"},                "v3_pilot"),
+    "v4_soft":       ({"dmp_variant": "v4_soft"},           "v4_soft"),
+    "v4_hard":       ({"dmp_variant": "v4_hard",
+                       "v4_density_lo": 0.10,
+                       "v4_density_hi": 0.20},              "v4_hard"),
+    "v4_twostage":   ({"dmp_variant": "v4_hard",
+                       "v4_density_lo": 0.10,
+                       "v4_density_hi": 0.20},              "v4_twostage"),
 }
 
 
