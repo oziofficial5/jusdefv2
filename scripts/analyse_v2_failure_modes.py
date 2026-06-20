@@ -378,15 +378,18 @@ def main():
         print(f"Saved {out_fig}")
 
     # Figure: ||W_op||_F imbalance for v2 (averaged across seeds, layer 0)
-    if results.get("v2_neural") or results.get("v2_keyword"):
+    v2_display_keys = [k for k in ("v2_keyword", "v2_neural") if results.get(k)]
+    if v2_display_keys:
         tag_to_norms = {}
-        for tag in V2_TAGS:
+        for tag in v2_display_keys:
             seed_norms = {n: [] for n in OPERATOR_NAMES}
             for seed in SEEDS:
                 wn = results.get(tag, {}).get(seed, {}).get("w_op_norms_per_layer")
                 if wn and len(wn) > 0:
                     for n in OPERATOR_NAMES:
-                        seed_norms[n].append(wn[0].get(n))
+                        v = wn[0].get(n)
+                        if v is not None:
+                            seed_norms[n].append(v)
             if any(seed_norms[n] for n in OPERATOR_NAMES):
                 tag_to_norms[tag] = {
                     n: (float(np.mean(seed_norms[n])) if seed_norms[n] else None,
