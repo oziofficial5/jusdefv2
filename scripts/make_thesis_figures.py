@@ -370,8 +370,66 @@ def main():
     fig14_counterfactual_per_bin_heatmap()
     fig15_v4_training_curves()
     fig16_cross_corpus_density()
+    fig17_op_coef_trajectory()
     fig18_confusion_10_20()
     print(f"\nAll figures written to {OUT_DIR.resolve()}/")
+
+
+# ---------------------------------------------------------------------------
+# Figure 17: op_coef trajectory during v3 training (single seed)
+# ---------------------------------------------------------------------------
+
+def fig17_op_coef_trajectory():
+    # Look for a v3 LEDGAR training log JSON with op_coef_trajectory populated.
+    candidates = [
+        Path("outputs/logs/ledgar_v3_traj_s42.json"),
+        Path("outputs/logs/ledgar_v3_pilot_s42.json"),
+    ]
+    src = next((p for p in candidates if p.is_file()), None)
+    if src is None:
+        print("  SKIP fig17: no v3 training log with op_coef_trajectory found")
+        return
+    with open(src) as f:
+        d = json.load(f)
+    traj = d.get("op_coef_trajectory")
+    if not traj:
+        print(f"  SKIP fig17: {src} has no op_coef_trajectory field")
+        return
+
+    epochs = [e["epoch"] for e in traj]
+    # Detect layers from keys
+    layer_idxs = sorted({int(k.split("_")[0].replace("layer", ""))
+                         for k in traj[0].keys() if k.startswith("layer")})
+    fig, axes = plt.subplots(1, len(layer_idxs), figsize=(4.5 * len(layer_idxs), 3.4),
+                              sharey=True)
+    if len(layer_idxs) == 1:
+        axes = [axes]
+    op_colors = {"AFF": "#0072B2", "NEG": "#D55E00", "EXC": "#E69F00", "OVR": "#009E73"}
+    op_init = {"AFF": 1.0, "NEG": -1.0, "EXC": -0.5, "OVR": 1.0}
+
+    for ax, li in zip(axes, layer_idxs):
+        for op_name in ["AFF", "NEG", "EXC", "OVR"]:
+            key = f"layer{li}_{op_name}"
+            ys = [e.get(key) for e in traj]
+            ax.plot(epochs, ys, marker="o", markersize=3, lw=1.2,
+                    color=op_colors[op_name], label=f"$c_\\mathsf{{{op_name}}}$")
+            ax.axhline(op_init[op_name], color=op_colors[op_name], lw=0.6,
+                       linestyle=":", alpha=0.6)
+        ax.set_title(f"layer {li}")
+        ax.set_xlabel("epoch")
+        ax.set_ylim(-1.4, 1.4)
+        ax.axhline(0, color="grey", lw=0.5, linestyle="--", zorder=1)
+        ax.grid(True, alpha=0.25, linestyle=":")
+    axes[0].set_ylabel("$c_\\omega$ (signed coefficient)")
+    axes[-1].legend(loc="lower right", frameon=False, fontsize=8.5)
+    fig.suptitle("v3 signed-coefficient trajectory across training (seed 42, LEDGAR)\n"
+                 "dotted horizontal lines mark the semantic initialisation",
+                 fontsize=10)
+    fig.tight_layout()
+    out = OUT_DIR / "fig17_op_coef_trajectory.pdf"
+    fig.savefig(out)
+    plt.close(fig)
+    print(f"  wrote {out}")
 
 
 # ---------------------------------------------------------------------------

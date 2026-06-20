@@ -214,6 +214,9 @@ def main():
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     ckpt_path = ckpt_dir / f"ledgar_{args.tag}_s{args.seed}.pt"
 
+    # Per-epoch op_coef trajectory log (only meaningful for v3-family variants)
+    op_coef_trajectory = []
+
     print("\nTraining...")
     for epoch in range(args.epochs):
         model.train()
@@ -261,6 +264,18 @@ def main():
                 print(f"  Early stopping at epoch {epoch}")
                 break
 
+        # Log per-epoch op_coef trajectory for v3-family variants
+        if args.dmp_variant in ("v3", "v4_hard", "v4_soft"):
+            entry = {"epoch": epoch}
+            for i, layer in enumerate(model.agg_layers):
+                if hasattr(layer, "op_coef"):
+                    coef = layer.op_coef.detach().cpu().numpy()
+                    entry[f"layer{i}_AFF"] = float(coef[0])
+                    entry[f"layer{i}_NEG"] = float(coef[1])
+                    entry[f"layer{i}_EXC"] = float(coef[2])
+                    entry[f"layer{i}_OVR"] = float(coef[3])
+            op_coef_trajectory.append(entry)
+
     # Test eval with best checkpoint
     print("\nTest evaluation (loading best checkpoint)...")
     model.load_state_dict(torch.load(ckpt_path, map_location=device))
@@ -294,6 +309,7 @@ def main():
             "v3_coef_reg_strength": args.v3_coef_reg_strength,
         },
         "v3_op_coef": op_coef_log,
+        "op_coef_trajectory": op_coef_trajectory,
     }
 
     log_dir = Path("outputs/logs")
