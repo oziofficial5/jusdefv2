@@ -13,6 +13,8 @@
 #   D   analyses: density subset, shuffle control, v4 bootstrap
 #
 # Resumable: each train step is skipped if its checkpoint already exists.
+# SMOKE mode is fully isolated (tags get a _smoke suffix) so a smoke run can
+# NEVER overwrite or shadow real checkpoints.
 #
 # Launch:
 #   cd ~/jusdefv2 && git pull origin jusdef-ledgar
@@ -30,11 +32,14 @@ CKPT=outputs/checkpoints
 SENT=outputs/sentinels
 mkdir -p "$LOG" "$CKPT" "$SENT"
 
-# Smoke mode: tiny + fast, just to confirm the pipeline runs end to end.
+# Smoke mode: tiny + fast, isolated under a _smoke tag suffix so it can never
+# collide with real checkpoints. Analyses are skipped in smoke mode.
 EXTRA=""
+SFX=""
 if [[ "${SMOKE:-0}" == "1" ]]; then
     EXTRA="--max_train 2000 --epochs 3"
-    echo "*** SMOKE MODE: $EXTRA (results are throwaway) ***"
+    SFX="_smoke"
+    echo "*** SMOKE MODE: $EXTRA | tag suffix '$SFX' (throwaway, isolated from real) ***"
 fi
 
 stamp() { date -u "+%Y-%m-%dT%H:%M:%SZ"; }
@@ -57,53 +62,57 @@ fi
 # ---- P2: mean baseline + v3 (real operators), all seeds --------------------
 banner "P2  mean + v3 (real ops) across seeds: $SEEDS"
 for s in $SEEDS; do
-    if [[ -f "$CKPT/ledgar_baseline_mean_s$s.pt" ]]; then
-        echo "[skip] mean s$s"
+    if [[ -f "$CKPT/ledgar_baseline_mean${SFX}_s$s.pt" ]]; then
+        echo "[skip] mean$SFX s$s"
     else
-        python -u scripts/train_ledgar.py --seed "$s" --tag baseline_mean \
-            --dmp_variant mean $EXTRA 2>&1 | tee "$LOG/ledgar_baseline_mean_s$s.log"
+        python -u scripts/train_ledgar.py --seed "$s" --tag "baseline_mean$SFX" \
+            --dmp_variant mean $EXTRA 2>&1 | tee "$LOG/ledgar_baseline_mean${SFX}_s$s.log"
     fi
-    if [[ -f "$CKPT/ledgar_v3_pilot_s$s.pt" ]]; then
-        echo "[skip] v3 s$s"
+    if [[ -f "$CKPT/ledgar_v3_pilot${SFX}_s$s.pt" ]]; then
+        echo "[skip] v3$SFX s$s"
     else
-        python -u scripts/train_ledgar.py --seed "$s" --tag v3_pilot \
-            --dmp_variant v3 $EXTRA 2>&1 | tee "$LOG/ledgar_v3_pilot_s$s.log"
+        python -u scripts/train_ledgar.py --seed "$s" --tag "v3_pilot$SFX" \
+            --dmp_variant v3 $EXTRA 2>&1 | tee "$LOG/ledgar_v3_pilot${SFX}_s$s.log"
     fi
 done
 
 # ---- P1: v3 on SHUFFLED operators, all seeds (the decisive control) --------
 banner "P1  v3 on SHUFFLED operators across seeds: $SEEDS"
 for s in $SEEDS; do
-    if [[ -f "$CKPT/ledgar_v3_shuffleop_s$s.pt" ]]; then
-        echo "[skip] v3_shuffleop s$s"
+    if [[ -f "$CKPT/ledgar_v3_shuffleop${SFX}_s$s.pt" ]]; then
+        echo "[skip] v3_shuffleop$SFX s$s"
     else
-        python -u scripts/train_ledgar.py --seed "$s" --tag v3_shuffleop \
+        python -u scripts/train_ledgar.py --seed "$s" --tag "v3_shuffleop$SFX" \
             --dmp_variant v3 --data_dir data/processed_ledgar_shuffleop $EXTRA \
-            2>&1 | tee "$LOG/ledgar_v3_shuffleop_s$s.log"
+            2>&1 | tee "$LOG/ledgar_v3_shuffleop${SFX}_s$s.log"
     fi
 done
 
 # ---- P3: v4_twostage, all seeds (needs the real v3 checkpoint) -------------
 banner "P3  v4_twostage across seeds: $SEEDS"
 for s in $SEEDS; do
-    if [[ -f "$SENT/v4_twostage_s$s.done" ]]; then
-        echo "[skip] v4_twostage s$s"
+    if [[ -f "$SENT/v4_twostage${SFX}_s$s.done" ]]; then
+        echo "[skip] v4_twostage$SFX s$s"
     else
-        python -u scripts/train_v4_twostage.py --seed "$s" --tag v4_twostage \
-            --pretrained_v3 "$CKPT/ledgar_v3_pilot_s$s.pt" \
-            2>&1 | tee "$LOG/ledgar_v4_twostage_s$s.log"
-        touch "$SENT/v4_twostage_s$s.done"
+        python -u scripts/train_v4_twostage.py --seed "$s" --tag "v4_twostage$SFX" \
+            --pretrained_v3 "$CKPT/ledgar_v3_pilot${SFX}_s$s.pt" \
+            2>&1 | tee "$LOG/ledgar_v4_twostage${SFX}_s$s.log"
+        touch "$SENT/v4_twostage${SFX}_s$s.done"
     fi
 done
 
-# ---- D: analyses -----------------------------------------------------------
+# ---- D: analyses (real runs only) -----------------------------------------
 banner "D  analyses"
-echo "--- single-seed density-stratified (seed 42 checkpoints) ---"
-python -u scripts/analyse_ledgar_density_subset.py 2>&1 | tee "$LOG/analyse_density_subset.log" || true
-echo "--- multi-seed OPERATOR-PERMUTATION CONTROL (the headline result) ---"
-python -u scripts/analyse_ledgar_shuffle_control.py --seeds $SEEDS 2>&1 | tee "$LOG/analyse_shuffle_control.log" || true
-echo "--- v4_twostage bootstrap ---"
-python -u scripts/bootstrap_v4_twostage.py 2>&1 | tee "$LOG/bootstrap_v4.log" || true
+if [[ -n "$SFX" ]]; then
+    echo "[smoke] skipping analyses (smoke checkpoints are throwaway)"
+else
+    echo "--- single-seed density-stratified (seed 42 checkpoints) ---"
+    python -u scripts/analyse_ledgar_density_subset.py 2>&1 | tee "$LOG/analyse_density_subset.log" || true
+    echo "--- multi-seed OPERATOR-PERMUTATION CONTROL (the headline result) ---"
+    python -u scripts/analyse_ledgar_shuffle_control.py --seeds $SEEDS 2>&1 | tee "$LOG/analyse_shuffle_control.log" || true
+    echo "--- v4_twostage bootstrap ---"
+    python -u scripts/bootstrap_v4_twostage.py 2>&1 | tee "$LOG/bootstrap_v4.log" || true
+fi
 
 banner "DONE — remember to download results before the booking ends"
 echo "  scp -r milan:~/jusdefv2/outputs/logs ./outputs/"
