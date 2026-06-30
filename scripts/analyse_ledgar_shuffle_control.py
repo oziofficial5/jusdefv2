@@ -155,29 +155,41 @@ def main():
 
     dr = np.array([r["delta_real"] for r in rows])
     ds = np.array([r["delta_shuf"] for r in rows])
+    sem = dr - ds                       # paired per-seed semantic increment
     n = len(rows)
+    sem_mean = float(sem.mean())
+    sem_sd = float(sem.std(ddof=1)) if n > 1 else 0.0
+    sem_se = sem_sd / np.sqrt(n) if n > 1 else 0.0
+    t_stat = sem_mean / sem_se if sem_se > 0 else float("nan")
+    n_pos = int((sem > 0).sum())
+    sem_frac = sem_mean / dr.mean() if dr.mean() != 0 else float("nan")  # share that is semantic
+
     print("\n" + "=" * 64)
     print(f" SHUFFLE-CONTROL SUMMARY  (n={n} seeds, {args.bin_lo*100:.0f}-{args.bin_hi*100:.0f}% bin)")
     print("=" * 64)
-    print(f"  delta_real (v3 TRUE ops vs mean):     {dr.mean():+.4f} ± {dr.std():.4f}  "
+    print(f"  delta_real (v3 TRUE ops vs mean):     {dr.mean():+.4f} ± {dr.std(ddof=1) if n>1 else 0:.4f}  "
           f"| seeds >0: {int((dr>0).sum())}/{n}")
-    print(f"  delta_shuf (v3 SHUFFLED ops vs mean): {ds.mean():+.4f} ± {ds.std():.4f}  "
-          f"| seeds >0: {int((ds>0).sum())}/{n}")
-    print(f"  semantic gain (real - shuffled):      {(dr-ds).mean():+.4f} ± {(dr-ds).std():.4f}")
+    print(f"  delta_shuf (v3 SHUFFLED ops vs mean): {ds.mean():+.4f} ± {ds.std(ddof=1) if n>1 else 0:.4f}  "
+          f"| seeds >0: {int((ds>0).sum())}/{n}   <- inductive-bias / capacity floor")
+    print(f"  semantic increment (real - shuffled): {sem_mean:+.4f} ± {sem_sd:.4f}  (SE {sem_se:.4f})")
+    print(f"    paired t = {t_stat:.2f} (df={n-1})  | seeds >0: {n_pos}/{n}  | semantic share ~{sem_frac*100:.0f}%")
 
-    print("\n VERDICT")
-    if dr.mean() > 0 and ds.mean() <= 0.5 * dr.mean():
-        print("  PASS — the regime gain depends on REAL operator semantics.")
-        print("  Shuffling operators collapses the gain; capacity/inductive-bias")
-        print("  alone does NOT reproduce it. This defuses the 'capacity not")
-        print("  defeasibility' challenge for the LEDGAR regime.")
-    elif dr.mean() <= 0:
-        print("  INCONCLUSIVE — real-operator gain not reproduced this run; check")
-        print("  seeds / that v3_pilot checkpoints are the intended ones.")
+    # honest, non-binary verdict: report BOTH components
+    print("\n VERDICT (report both components — do NOT claim 'shuffling kills the gain')")
+    sig = (sem_se > 0 and abs(t_stat) >= 2.0 and sem_mean > 0)
+    if dr.mean() <= 0:
+        print("  INCONCLUSIVE — no real-operator gain this run; check seeds / checkpoints.")
     else:
-        print("  WARNING — shuffled operators retain much of the gain. The 10-20%")
-        print("  effect may be partly capacity / inductive bias, NOT pure semantics.")
-        print("  Report this honestly; it reshapes the central claim.")
+        if sig:
+            print(f"  Genuine operator-semantics effect IS present and significant "
+                  f"(paired t={t_stat:.2f}, {n_pos}/{n} seeds positive).")
+        else:
+            print(f"  Genuine operator-semantics effect is weak / not significant "
+                  f"(paired t={t_stat:.2f}, {n_pos}/{n} seeds positive).")
+        print(f"  BUT ~{(1-sem_frac)*100:.0f}% of the regime gain reproduces with RANDOM operators")
+        print(f"  (delta_shuf={ds.mean():+.4f}), i.e. is architectural inductive bias, not defeat.")
+        print(f"  Honest claim: the regime effect is ~{sem_frac*100:.0f}% operator semantics + "
+              f"~{(1-sem_frac)*100:.0f}% inductive bias.")
 
     out = Path("outputs/logs/ledgar_shuffle_control.json")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -185,8 +197,11 @@ def main():
         json.dump({
             "n_seeds": n, "bin": [args.bin_lo, args.bin_hi], "n_bin_paragraphs": n_bin,
             "per_seed": rows,
-            "delta_real_mean": float(dr.mean()), "delta_real_std": float(dr.std()),
-            "delta_shuf_mean": float(ds.mean()), "delta_shuf_std": float(ds.std()),
+            "delta_real_mean": float(dr.mean()), "delta_real_std": float(dr.std(ddof=1) if n>1 else 0),
+            "delta_shuf_mean": float(ds.mean()), "delta_shuf_std": float(ds.std(ddof=1) if n>1 else 0),
+            "semantic_increment_mean": sem_mean, "semantic_increment_se": sem_se,
+            "semantic_paired_t": float(t_stat), "semantic_seeds_positive": n_pos,
+            "semantic_fraction": float(sem_frac),
         }, f, indent=2)
     print(f"\nSaved {out}")
 

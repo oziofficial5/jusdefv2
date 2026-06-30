@@ -37,7 +37,9 @@ if PROJECT_ROOT not in sys.path:
 from src.model.jusdef_ledgar import JusDefLEDGAR
 
 
-SEEDS = [42, 43, 44, 45, 46]
+import os as _os
+SEEDS = [int(x) for x in _os.environ.get(
+    "SEEDS", "42 43 44 45 46 47 48 49 50 51").split()]
 N_BOOTSTRAP = 10000
 RNG_SEED = 12345
 
