@@ -1,0 +1,83 @@
+{
+  "n_test_paragraphs": 10000,
+  "density_distribution": {
+    "0.0": 10000,
+    "0.05": 3521,
+    "0.1": 3509,
+    "0.2": 3353,
+    "0.3": 2869,
+    "0.5": 2222
+  },
+  "stratified_f1": {
+    "all paragraphs": {
+      "n_paragraphs": 10000,
+      "mean_macro_f1": 0.7101492253296763,
+      "v3_macro_f1": 0.6747324024020745,
+      "delta": -0.03541682292760173,
+      "n_labels_present": 100
+    },
+    "0% (AFF only)": {
+      "n_paragraphs": 6479,
+      "mean_macro_f1": 0.683940017558751,
+      "v3_macro_f1": 0.6374902814766221,
+      "delta": -0.04644973608212888,
+      "n_labels_present": 100
+    },
+    "5-10%": {
+      "n_paragraphs": 12,
+      "mean_macro_f1": 0.5583333333333333,
+      "v3_macro_f1": 0.6875,
+      "delta": 0.12916666666666665,
+      "n_labels_present": 8
+    },
+    "10-20%": {
+      "n_paragraphs": 156,
+      "mean_macro_f1": 0.5905971952024585,
+      "v3_macro_f1": 0.6588075208818243,
+      "delta": 0.0682103256793658,
+      "n_labels_present": 57
+    },
+    "20-30%": {
+      "n_paragraphs": 484,
+      "mean_macro_f1": 0.7000407681452117,
+      "v3_macro_f1": 0.6850525868300361,
+      "delta": -0.014988181315175542,
+      "n_labels_present": 83
+    },
+    "30-50%": {
+      "n_paragraphs": 647,
+      "mean_macro_f1": 0.7251950039976456,
+      "v3_macro_f1": 0.6713478705828577,
+      "delta": -0.05384713341478786,
+      "n_labels_present": 91
+    },
+    "50%+": {
+      "n_paragraphs": 2222,
+      "mean_macro_f1": 0.6895440175333176,
+      "v3_macro_f1": 0.6705024385876893,
+      "delta": -0.0190415789456283,
+      "n_labels_present": 96
+    },
+    "== >= 10% (Y_exc-like)": {
+      "n_paragraphs": 3509,
+      "mean_macro_f1": 0.7087230329268135,
+      "v3_macro_f1": 0.6764762798207121,
+      "delta": -0.03224675310610137,
+      "n_labels_present": 99
+    },
+    "== >= 20% dense subset": {
+      "n_paragraphs": 3353,
+      "mean_macro_f1": 0.708881391753833,
+      "v3_macro_f1": 0.6730207496014227,
+      "delta": -0.03586064215241036,
+      "n_labels_present": 99
+    },
+    "== >= 30% very dense": {
+      "n_paragraphs": 2869,
+      "mean_macro_f1": 0.7101386670466119,
+      "v3_macro_f1": 0.670030773440258,
+      "delta": -0.04010789360635392,
+      "n_labels_present": 99
+    }
+  }
+}

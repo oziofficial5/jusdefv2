@@ -36,3 +36,8 @@ test.py
 # Misc
 *.npy
 *.h5
+
+data/processed_*/
+logs/
+*.bak
+outputs/checkpoints/
