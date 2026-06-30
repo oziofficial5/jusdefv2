@@ -184,7 +184,11 @@ def main():
                   f"95% CI [{r['ci95_low']:+.4f}, {r['ci95_high']:+.4f}]")
         # Pooled: stack predictions across seeds, run one bootstrap with seed labels as factor
         # Simpler aggregation: report Fisher-combined p-value
-        ps = [r["p_two_sided"] for r in per_seed.values() if r["p_two_sided"] > 0]
+        # floor p at 1/(N_BOOTSTRAP+1) rather than DROPPING p==0 seeds — dropping
+        # would discard the most-significant seeds and bias the pooled p upward,
+        # and produce an inconsistent n_seeds count across comparisons.
+        p_floor = 1.0 / (N_BOOTSTRAP + 1)
+        ps = [max(r["p_two_sided"], p_floor) for r in per_seed.values()]
         if ps:
             chi2 = -2 * sum(np.log(p) for p in ps)
             df = 2 * len(ps)
