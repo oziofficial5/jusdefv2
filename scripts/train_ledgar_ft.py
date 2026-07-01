@@ -56,7 +56,7 @@ class F2Model(nn.Module):
     """Fine-tuned sentence encoder + JusDefLEDGAR aggregation head."""
 
     def __init__(self, backbone, agg, hidden_dim=512, num_classes=100,
-                 v4_soft_init_bias=-5.0, freeze_bottom=0):
+                 v4_soft_init_bias=-5.0, freeze_bottom=0, aux_op_weight=0.0):
         super().__init__()
         self.encoder = AutoModel.from_pretrained(backbone)
         if freeze_bottom > 0:
@@ -71,11 +71,20 @@ class F2Model(nn.Module):
             num_classes=num_classes, num_layers=1, dmp_variant=agg,
             v4_soft_init_bias=v4_soft_init_bias,
         )
+        # F4: auxiliary per-sentence operator-prediction head (multi-task).
+        # Forces the fine-tuned encoder to STAY operator-aware; tests whether
+        # that recovers any regime benefit once the encoder is fine-tuned.
+        self.aux_op_head = (nn.Linear(self.encoder.config.hidden_size, 4)
+                            if aux_op_weight > 0 else None)
 
-    def forward(self, input_ids, attn_mask, sent_to_para, operators, num_paragraphs):
+    def forward(self, input_ids, attn_mask, sent_to_para, operators, num_paragraphs,
+                return_aux=False):
         out = self.encoder(input_ids=input_ids, attention_mask=attn_mask)
         cls = out.last_hidden_state[:, 0]            # (TotalSents, 768)
-        return self.head(cls, sent_to_para, operators, num_paragraphs)
+        logits = self.head(cls, sent_to_para, operators, num_paragraphs)
+        if return_aux and self.aux_op_head is not None:
+            return logits, self.aux_op_head(cls)
+        return logits
 
     def coef_reg(self):
         return self.head.v3_coef_regulariser()
@@ -146,6 +155,9 @@ def main():
     ap.add_argument("--patience", type=int, default=2)
     ap.add_argument("--warmup_ratio", type=float, default=0.1)
     ap.add_argument("--v4_soft_init_bias", type=float, default=-5.0)
+    ap.add_argument("--aux_op_weight", type=float, default=0.0,
+                    help="F4: weight on auxiliary per-sentence operator-prediction "
+                         "loss (0 = off). Forces encoder to stay operator-aware.")
     ap.add_argument("--freeze_bottom", type=int, default=0,
                     help="freeze embeddings + bottom N encoder layers (speed)")
     ap.add_argument("--bin_lo", type=float, default=0.10)
@@ -169,7 +181,8 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.backbone)
     model = F2Model(args.backbone, args.agg, args.hidden_dim, args.num_classes,
-                    args.v4_soft_init_bias, args.freeze_bottom).to(device)
+                    args.v4_soft_init_bias, args.freeze_bottom,
+                    aux_op_weight=args.aux_op_weight).to(device)
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"  trainable params: {n_train:,}", flush=True)
 
@@ -193,8 +206,13 @@ def main():
             ii, am, s2p, op, lab, npar = collate(batch, tokenizer, args.max_len, device)
             lab = lab.to(device)
             optim.zero_grad()
-            logits = model(ii, am, s2p, op, npar)
-            loss = F.cross_entropy(logits, lab) + model.coef_reg()
+            if args.aux_op_weight > 0:
+                logits, aux = model(ii, am, s2p, op, npar, return_aux=True)
+                loss = (F.cross_entropy(logits, lab) + model.coef_reg()
+                        + args.aux_op_weight * F.cross_entropy(aux, op))
+            else:
+                logits = model(ii, am, s2p, op, npar)
+                loss = F.cross_entropy(logits, lab) + model.coef_reg()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optim.step(); sched.step()
@@ -224,7 +242,8 @@ def main():
         "config": {"seed": args.seed, "agg": args.agg, "tag": tag,
                    "encoder_lr": args.encoder_lr, "head_lr": args.head_lr,
                    "epochs": args.epochs, "freeze_bottom": args.freeze_bottom,
-                   "v4_soft_init_bias": args.v4_soft_init_bias},
+                   "v4_soft_init_bias": args.v4_soft_init_bias,
+                   "aux_op_weight": args.aux_op_weight},
         "test_preds": tp.tolist(),          # for later bootstrap
     }
     out = Path("outputs/logs") / f"ledgar_{tag}_s{args.seed}.json"
