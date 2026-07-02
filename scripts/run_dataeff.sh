@@ -43,7 +43,8 @@ for size in $SIZES; do
     bias=""; [[ "$agg" == "v4_soft" ]] && bias="--v4_soft_init_bias -5.0"
     for s in $SEEDS; do
       tag="ft_${agg}_n${size}${SFX}"
-      if [[ -f "$CKPT/ledgar_${tag}_s$s.pt" ]]; then
+      # guard on the RESULTS JSON (persists), since --delete_ckpt_after removes the .pt
+      if [[ -f "$LOG/ledgar_${tag}_s$s.json" ]]; then
         echo "[skip] $tag s$s"
       else
         python -u scripts/train_ledgar_ft.py --agg "$agg" --seed "$s" --tag "$tag" \
