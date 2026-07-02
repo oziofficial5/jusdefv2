@@ -163,6 +163,9 @@ def main():
     ap.add_argument("--bin_lo", type=float, default=0.10)
     ap.add_argument("--bin_hi", type=float, default=0.20)
     ap.add_argument("--max_train", type=int, default=0, help=">0 limits train (smoke)")
+    ap.add_argument("--delete_ckpt_after", action="store_true",
+                    help="delete the (large) FT checkpoint after writing results "
+                         "JSON; analyses only need the JSON. Saves disk.")
     args = ap.parse_args()
     tag = args.tag or f"ft_{args.agg}"
 
@@ -255,6 +258,12 @@ def main():
     print(f"  test_micro_f1      : {res['test_micro_f1']:.4f}")
     print(f"  test_macro_f1_10_20: {res['test_macro_f1_10_20']:.4f}  (n={res['n_bin']})")
     print(f"Saved {out}")
+    if args.delete_ckpt_after:
+        try:
+            ckpt_path.unlink()
+            print(f"  deleted checkpoint {ckpt_path} (results in JSON; saves ~0.4GB)")
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

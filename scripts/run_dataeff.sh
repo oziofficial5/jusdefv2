@@ -48,6 +48,7 @@ for size in $SIZES; do
       else
         python -u scripts/train_ledgar_ft.py --agg "$agg" --seed "$s" --tag "$tag" \
           --max_train "$size" --epochs "$EPOCHS" --patience 3 $bias \
+          --delete_ckpt_after \
           2>&1 | tee "$LOG/ledgar_${tag}_s$s.log"
       fi
     done
