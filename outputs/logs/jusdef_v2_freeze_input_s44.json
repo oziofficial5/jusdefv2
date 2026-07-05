@@ -1,0 +1,12 @@
+{
+  "best_val_macro_f1": 0.217,
+  "test_macro_f1": 0.1957,
+  "test_micro_f1": 0.3335,
+  "test_threshold": 0.12,
+  "config": {
+    "seed": 44,
+    "tag": "v2_freeze_input",
+    "use_dmp": true,
+    "use_authority": true
+  }
+}

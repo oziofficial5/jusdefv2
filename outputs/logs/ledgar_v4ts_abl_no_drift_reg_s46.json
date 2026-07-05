@@ -1,0 +1,15 @@
+{
+  "best_val_macro_f1": 0.7078,
+  "test_macro_f1": 0.6919,
+  "test_micro_f1": 0.7989,
+  "config": {
+    "seed": 46,
+    "tag": "v4ts_abl_no_drift_reg",
+    "dmp_variant": "v4_twostage",
+    "pretrained_v3": "outputs/checkpoints/ledgar_v3_abl_no_drift_reg_for_v4ts_s46.pt",
+    "v4_density_lo": 0.1,
+    "v4_density_hi": 0.2,
+    "warm_start_classifier": false,
+    "epochs_planned": 15
+  }
+}

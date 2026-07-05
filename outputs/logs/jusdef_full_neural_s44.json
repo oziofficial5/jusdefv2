@@ -1,0 +1,13 @@
+{
+  "best_val_macro_f1": 0.1849,
+  "val_macro_f1_at_best": 0.1849,
+  "val_threshold": 0.1,
+  "test_macro_f1": 0.1665,
+  "test_micro_f1": 0.3299,
+  "config": {
+    "seed": 44,
+    "tag": "full_neural",
+    "use_dmp": true,
+    "use_authority": true
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "best_val_macro_f1": 0.0938,
+  "test_macro_f1": 0.0943,
+  "test_micro_f1": 0.1028,
+  "test_threshold": 0.04,
+  "config": {
+    "seed": 42,
+    "tag": "smoke_freeze",
+    "use_dmp": true,
+    "use_authority": true
+  }
+}

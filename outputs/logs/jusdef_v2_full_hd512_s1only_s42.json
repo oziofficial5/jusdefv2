@@ -1,0 +1,12 @@
+{
+  "best_val_macro_f1": 0.1902,
+  "test_macro_f1": 0.1749,
+  "test_micro_f1": 0.2357,
+  "test_threshold": 0.08,
+  "config": {
+    "seed": 42,
+    "tag": "v2_full_hd512_s1only",
+    "use_dmp": true,
+    "use_authority": true
+  }
+}

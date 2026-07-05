@@ -1,0 +1,31 @@
+{
+  "best_val_macro_f1": 0.7067,
+  "test_macro_f1": 0.6976,
+  "test_micro_f1": 0.7956,
+  "config": {
+    "seed": 43,
+    "tag": "v3_2layer",
+    "dmp_variant": "v3",
+    "hidden_dim": 512,
+    "num_layers": 2,
+    "lr": 0.001,
+    "epochs_planned": 30,
+    "v3_coef_reg_strength": 0.01
+  },
+  "v3_op_coef": [
+    {
+      "layer": 0,
+      "AFF": 0.244539275765419,
+      "NEG": -0.7992675304412842,
+      "EXC": 0.11039268970489502,
+      "OVR": 0.6413055062294006
+    },
+    {
+      "layer": 1,
+      "AFF": 0.2649524509906769,
+      "NEG": -0.5415968894958496,
+      "EXC": 0.2622242271900177,
+      "OVR": 0.6718750596046448
+    }
+  ]
+}

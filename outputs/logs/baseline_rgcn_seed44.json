@@ -1,0 +1,15 @@
+{
+  "model": "RGCN",
+  "seed": 44,
+  "best_val_macro_f1": 0.2968,
+  "val_macro_f1_at_best": 0.2968,
+  "val_threshold": 0.1,
+  "test_macro_f1": 0.2797,
+  "test_micro_f1": 0.4242,
+  "config": {
+    "hidden_dim": 512,
+    "num_layers": 2,
+    "lr": 0.0005,
+    "dropout": 0.3
+  }
+}

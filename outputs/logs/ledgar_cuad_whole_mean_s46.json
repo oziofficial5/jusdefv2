@@ -1,0 +1,17 @@
+{
+  "best_val_macro_f1": 0.374,
+  "test_macro_f1": 0.3062,
+  "test_micro_f1": 0.5434,
+  "config": {
+    "seed": 46,
+    "tag": "cuad_whole_mean",
+    "dmp_variant": "mean",
+    "hidden_dim": 512,
+    "num_layers": 1,
+    "lr": 0.001,
+    "epochs_planned": 30,
+    "v3_coef_reg_strength": 0.01
+  },
+  "v3_op_coef": null,
+  "op_coef_trajectory": []
+}

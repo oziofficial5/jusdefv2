@@ -1,0 +1,24 @@
+{
+  "best_val_macro_f1": 0.7044,
+  "test_macro_f1": 0.6882,
+  "test_micro_f1": 0.7926,
+  "config": {
+    "seed": 43,
+    "tag": "v3_abl_shared_w_revert",
+    "dmp_variant": "v3",
+    "hidden_dim": 512,
+    "num_layers": 1,
+    "lr": 0.001,
+    "epochs_planned": 30,
+    "v3_coef_reg_strength": 0.01
+  },
+  "v3_op_coef": [
+    {
+      "layer": 0,
+      "AFF": 0.3133860230445862,
+      "NEG": -0.9913437962532043,
+      "EXC": -0.3309263586997986,
+      "OVR": 0.7377803921699524
+    }
+  ]
+}

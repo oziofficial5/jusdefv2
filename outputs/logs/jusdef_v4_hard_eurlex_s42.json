@@ -1,0 +1,13 @@
+{
+  "best_val_macro_f1": 0.2003,
+  "val_macro_f1_at_best": 0.2003,
+  "val_threshold": 0.08,
+  "test_macro_f1": 0.1867,
+  "test_micro_f1": 0.3024,
+  "config": {
+    "seed": 42,
+    "tag": "v4_hard_eurlex",
+    "use_dmp": true,
+    "use_authority": true
+  }
+}

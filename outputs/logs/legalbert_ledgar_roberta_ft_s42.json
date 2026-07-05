@@ -1,0 +1,15 @@
+{
+  "best_val_macro_f1": 0.7974,
+  "test_macro_f1": 0.7982,
+  "test_micro_f1": 0.8699,
+  "config": {
+    "seed": 42,
+    "tag": "roberta_ft",
+    "backbone": "roberta-base",
+    "lr": 2e-05,
+    "epochs": 5,
+    "batch_size": 16,
+    "max_length": 512,
+    "num_classes": 100
+  }
+}

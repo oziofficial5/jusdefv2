@@ -1,0 +1,24 @@
+{
+  "best_val_macro_f1": 0.7116,
+  "test_macro_f1": 0.6871,
+  "test_micro_f1": 0.7953,
+  "config": {
+    "seed": 42,
+    "tag": "v4_hard_w8_22",
+    "dmp_variant": "v4_hard",
+    "hidden_dim": 512,
+    "num_layers": 1,
+    "lr": 0.001,
+    "epochs_planned": 30,
+    "v3_coef_reg_strength": 0.01
+  },
+  "v3_op_coef": [
+    {
+      "layer": 0,
+      "AFF": 0.30799517035484314,
+      "NEG": -0.9901993274688721,
+      "EXC": -0.5005365610122681,
+      "OVR": 0.999354898929596
+    }
+  ]
+}

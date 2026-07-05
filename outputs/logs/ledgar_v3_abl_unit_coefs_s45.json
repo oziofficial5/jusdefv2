@@ -1,0 +1,24 @@
+{
+  "best_val_macro_f1": 0.6991,
+  "test_macro_f1": 0.6784,
+  "test_micro_f1": 0.7889,
+  "config": {
+    "seed": 45,
+    "tag": "v3_abl_unit_coefs",
+    "dmp_variant": "v3",
+    "hidden_dim": 512,
+    "num_layers": 1,
+    "lr": 0.001,
+    "epochs_planned": 30,
+    "v3_coef_reg_strength": 0.01
+  },
+  "v3_op_coef": [
+    {
+      "layer": 0,
+      "AFF": 0.49255478382110596,
+      "NEG": 0.942957878112793,
+      "EXC": 0.5006595849990845,
+      "OVR": 0.7011313438415527
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "best_val_macro_f1": 0.8068,
+  "test_macro_f1": 0.796,
+  "test_micro_f1": 0.8766,
+  "config": {
+    "seed": 44,
+    "tag": "ft",
+    "backbone": "nlpaueb/legal-bert-base-uncased",
+    "lr": 2e-05,
+    "epochs": 5,
+    "batch_size": 16,
+    "max_length": 512,
+    "num_classes": 100
+  }
+}

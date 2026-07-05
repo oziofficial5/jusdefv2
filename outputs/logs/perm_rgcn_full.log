@@ -1,0 +1,66 @@
+Device: cuda
+
+==================================================================
+ AIFB  (10 seeds, 90 relations, 4 classes)
+==================================================================
+  R-GCN (true relations)     acc = 0.9639
+  R-GCN (shuffled relations) acc = 0.7056
+  R-GCN (single relation)    acc = 0.9750
+  ---
+  total relation gain (true - single)      = -0.0111
+  relation inductive bias (shuf - single)  = -0.2694
+  genuine relation semantics (true - shuf) = +0.2583 (SE 0.0361, t=7.15, 10/10 seeds)
+  diagnostic signature (shuf - single) = -0.2694  ->  GENUINE relations (misassigned relations worse than one relation)
+
+==================================================================
+ MUTAG  (10 seeds, 46 relations, 2 classes)
+==================================================================
+  R-GCN (true relations)     acc = 0.7500
+  R-GCN (shuffled relations) acc = 0.7559
+  R-GCN (single relation)    acc = 0.7662
+  ---
+  total relation gain (true - single)      = -0.0162
+  relation inductive bias (shuf - single)  = -0.0103
+  genuine relation semantics (true - shuf) = -0.0059 (SE 0.0132, t=-0.45, 3/10 seeds)
+  diagnostic signature (shuf - single) = -0.0103  ->  NO/weak relation effect (genuine ~0; like LEDGAR/MUTAG)
+
+Downloading https://data.dgl.ai/dataset/bgs.tgz
+Extracting data/entities/BGS/bgs.tgz
+Processing...
+Done!
+==================================================================
+ BGS  (10 seeds, 206 relations, 2 classes)
+==================================================================
+  R-GCN (true relations)     acc = 0.8448
+  R-GCN (shuffled relations) acc = 0.6862
+  R-GCN (single relation)    acc = 0.7862
+  ---
+  total relation gain (true - single)      = +0.0586
+  relation inductive bias (shuf - single)  = -0.1000
+  genuine relation semantics (true - shuf) = +0.1586 (SE 0.0219, t=7.23, 10/10 seeds)
+  diagnostic signature (shuf - single) = -0.1000  ->  GENUINE relations (misassigned relations worse than one relation)
+
+Downloading https://data.dgl.ai/dataset/am.tgz
+Extracting data/entities/AM/am.tgz
+Processing...
+Done!
+Traceback (most recent call last):
+  File "/home/francesco/jusdefv2/jusdefv2/scripts/perm_control_rgcn.py", line 133, in <module>
+    main()
+  File "/home/francesco/jusdefv2/jusdefv2/scripts/perm_control_rgcn.py", line 103, in main
+    acc_z.append(train_eval(RGCN(nnod, args.hidden, ncls, nrel, args.bases), data, et_zero, device))
+  File "/home/francesco/jusdefv2/jusdefv2/scripts/perm_control_rgcn.py", line 56, in train_eval
+    out = model(ei, et)
+  File "/home/francesco/jusdefv2/jusdefv2/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/francesco/jusdefv2/jusdefv2/scripts/perm_control_rgcn.py", line 43, in forward
+    return self.c2(x, edge_index, edge_type)
+  File "/home/francesco/jusdefv2/jusdefv2/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1194, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/home/francesco/jusdefv2/jusdefv2/.venv/lib/python3.10/site-packages/torch_geometric/nn/conv/rgcn_conv.py", line 311, in forward
+    out = self.propagate(edge_index, x=x_l, edge_type=edge_type, size=size)
+  File "/home/francesco/jusdefv2/jusdefv2/.venv/lib/python3.10/site-packages/torch_geometric/nn/conv/message_passing.py", line 484, in propagate
+    out = self.aggregate(out, **aggr_kwargs)
+  File "/home/francesco/jusdefv2/jusdefv2/.venv/lib/python3.10/site-packages/torch_geometric/nn/conv/rgcn_conv.py", line 354, in aggregate
+    norm = scatter(norm, index, dim=0, dim_size=dim_size)[index]
+torch.cuda.OutOfMemoryError: CUDA out of memory. Tried to allocate 11.87 GiB (GPU 0; 79.14 GiB total capacity; 47.81 GiB already allocated; 6.23 GiB free; 59.58 GiB reserved in total by PyTorch) If reserved memory is >> allocated memory try setting max_split_size_mb to avoid fragmentation.  See documentation for Memory Management and PYTORCH_CUDA_ALLOC_CONF
