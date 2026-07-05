@@ -129,7 +129,13 @@ def main():
         print(f"  topology/inductive bias (shuf - MLP) = {top_m:+.4f}")
         print(f"  genuine structure (true - shuf)      = {gen_m:+.4f} "
               f"(SE {gen_se:.4f}, t={gen_t:.2f}, {gen_pos}/{n} seeds)")
-        print(f"  genuine-structure share of gain      = {frac*100:.0f}%\n")
+        sig = ("GENUINE structure (misaligned graph is worse than no graph)"
+               if top_m < 0 else
+               "inductive-bias present (structure helps even when content-misaligned)")
+        print(f"  diagnostic signature (shuf - baseline) = {top_m:+.4f}  ->  {sig}")
+        if top_m >= 0:
+            print(f"  genuine-structure share of gain      = {frac*100:.0f}%")
+        print()
 
     print("Interpretation: the same true/shuffled/zeroed decomposition used for legal")
     print("operators cleanly separates, on canonical benchmarks, how much of a GNN's")
