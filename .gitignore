@@ -45,3 +45,4 @@ outputs/checkpoints/
 data/contract_nli_raw/
 data/entities/
 data/planetoid/
+data/gnn_bench/
