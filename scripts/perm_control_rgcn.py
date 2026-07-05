@@ -116,9 +116,12 @@ def main():
         print(f"  relation inductive bias (shuf - single)  = {bias_m:+.4f}")
         print(f"  genuine relation semantics (true - shuf) = {gen_m:+.4f} "
               f"(SE {gen_se:.4f}, t={gen_t:.2f}, {gen_pos}/{n} seeds)")
-        sig = ("GENUINE relations (misassigned relations worse than one relation)"
-               if bias_m < 0 else
-               "inductive bias (multiple relations help even misassigned)")
+        if gen_m < 0.03 and abs(bias_m) < 0.03:
+            sig = "NO/weak relation effect (genuine ~0; like LEDGAR/MUTAG)"
+        elif bias_m < 0:
+            sig = "GENUINE relations (misassigned relations worse than one relation)"
+        else:
+            sig = "inductive bias (multiple relations help even misassigned)"
         print(f"  diagnostic signature (shuf - single) = {bias_m:+.4f}  ->  {sig}\n")
 
     print("Interpretation: the same true/shuffled/zeroed control decomposes R-GCN's")
