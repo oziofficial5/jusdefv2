@@ -41,3 +41,7 @@ data/processed_*/
 logs/
 *.bak
 outputs/checkpoints/
+
+data/contract_nli_raw/
+data/entities/
+data/planetoid/
