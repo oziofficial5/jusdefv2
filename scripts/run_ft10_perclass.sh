@@ -3,10 +3,10 @@
 # Ampere job: extend the fine-tuned LEDGAR experiments to 10 seeds and
 # decompose the 10-20% regime gain by clause type.
 #
-#   Stage FT  : fine-tuned encoder, seeds 47-51, aggs {mean, v3, v4_soft}
-#               (seeds 42-46 assumed already present from the earlier run)
-#   Stage AUX : v4_soft + auxiliary operator loss, seeds 47-51 (completes the
-#               "aux operator loss" row to 10 seeds; optional but cheap)
+#   Stage FT  : fine-tuned encoder, seeds 42-51, aggs {mean, v3, v4_soft}
+#               (a (seed,agg) whose result JSON already exists is skipped, so
+#                any earlier runs are reused and only the gaps are filled)
+#   Stage AUX : v4_soft + auxiliary operator loss, seeds 42-51 (same skip rule)
 #   Stage CMP : aggregate the 10-seed FT comparison (no GPU)
 #   Stage PC  : per-class decomposition of the regime gain
 #               (needs frozen v3_pilot / baseline_mean checkpoints s42-46)
@@ -34,11 +34,12 @@ echo "== FT-to-10-seeds + per-class :: start $(stamp) =="
 python -c "import torch; print('cuda', torch.cuda.is_available(), \
   torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'cpu')"
 
-# --- Stage FT: seeds 47-51 x {mean, v3, v4_soft} ---------------------------
-for seed in 47 48 49 50 51; do
+# --- Stage FT: seeds 42-51 x {mean, v3, v4_soft} (skip if result exists) ---
+for seed in 42 43 44 45 46 47 48 49 50 51; do
   for agg in mean v3 v4_soft; do
     key="ft_${agg}_s${seed}"
-    if have "$key"; then echo "skip $key"; continue; fi
+    json="$LOG/ledgar_ft_${agg}_s${seed}.json"
+    if have "$key" || [[ -f "$json" ]]; then echo "skip $key (result present)"; continue; fi
     echo "== train $key :: $(stamp) =="
     python -u scripts/train_ledgar_ft.py --agg "$agg" --seed "$seed" \
       2>&1 | tee "$LOG/${key}.log"
@@ -46,10 +47,11 @@ for seed in 47 48 49 50 51; do
   done
 done
 
-# --- Stage AUX: v4_soft + auxiliary operator loss, seeds 47-51 -------------
-for seed in 47 48 49 50 51; do
+# --- Stage AUX: v4_soft + auxiliary operator loss, seeds 42-51 -------------
+for seed in 42 43 44 45 46 47 48 49 50 51; do
   key="ft_v4soft_aux_s${seed}"
-  if have "$key"; then echo "skip $key"; continue; fi
+  json="$LOG/ledgar_ft_v4soft_aux_s${seed}.json"
+  if have "$key" || [[ -f "$json" ]]; then echo "skip $key (result present)"; continue; fi
   echo "== train $key :: $(stamp) =="
   python -u scripts/train_ledgar_ft.py --agg v4_soft --seed "$seed" \
     --aux_op_weight 0.1 --tag ft_v4soft_aux 2>&1 | tee "$LOG/${key}.log"
