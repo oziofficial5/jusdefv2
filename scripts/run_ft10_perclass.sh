@@ -47,18 +47,9 @@ for seed in 42 43 44 45 46 47 48 49 50 51; do
   done
 done
 
-# --- Stage AUX: v4_soft + auxiliary operator loss, seeds 42-51 -------------
-for seed in 42 43 44 45 46 47 48 49 50 51; do
-  key="ft_v4soft_aux_s${seed}"
-  json="$LOG/ledgar_ft_v4soft_aux_s${seed}.json"
-  if have "$key" || [[ -f "$json" ]]; then echo "skip $key (result present)"; continue; fi
-  echo "== train $key :: $(stamp) =="
-  python -u scripts/train_ledgar_ft.py --agg v4_soft --seed "$seed" \
-    --aux_op_weight 0.1 --tag ft_v4soft_aux 2>&1 | tee "$LOG/${key}.log"
-  mark "$key"
-done
-
 # --- Stage CMP: 10-seed FT comparison (no GPU) -----------------------------
+# Run the two headline deliverables (comparison + per-class) before the
+# optional aux row, so they land first even if the box is released early.
 echo "== FT comparison over 10 seeds :: $(stamp) =="
 python -u scripts/analyse_ft_compare.py --aggs mean v3 v4_soft \
   --seeds 42 43 44 45 46 47 48 49 50 51 2>&1 | tee "$LOG/ft_compare_10seed.log"
@@ -73,5 +64,16 @@ if [[ -f "$LOG/predictions_10_20_bin.json" ]]; then
   echo "== per-class regime-gain decomposition :: $(stamp) =="
   python -u scripts/analyse_perclass_regime.py 2>&1 | tee "$LOG/perclass_regime.log"
 fi
+
+# --- Stage AUX: v4_soft + auxiliary operator loss, seeds 42-51 (optional) --
+for seed in 42 43 44 45 46 47 48 49 50 51; do
+  key="ft_v4soft_aux_s${seed}"
+  json="$LOG/ledgar_ft_v4soft_aux_s${seed}.json"
+  if have "$key" || [[ -f "$json" ]]; then echo "skip $key (result present)"; continue; fi
+  echo "== train $key :: $(stamp) =="
+  python -u scripts/train_ledgar_ft.py --agg v4_soft --seed "$seed" \
+    --aux_op_weight 0.1 --tag ft_v4soft_aux 2>&1 | tee "$LOG/${key}.log"
+  mark "$key"
+done
 
 echo "== done :: $(stamp) =="
