@@ -9,7 +9,7 @@
 #SBATCH --error=logs/ft10-%j.err
 
 set -euo pipefail
-cd ~/jusdefv2
+cd "${SLURM_SUBMIT_DIR:-$PWD}"
 mkdir -p logs outputs/checkpoints outputs/logs outputs/sentinels
 
 bash ./scripts/run_ft10_perclass.sh

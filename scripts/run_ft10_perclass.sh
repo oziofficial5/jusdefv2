@@ -17,7 +17,10 @@
 set -euo pipefail
 export PYTHONUNBUFFERED=1
 export TOKENIZERS_PARALLELISM=false
-cd ~/jusdefv2
+# cd to the repo root (the directory containing this script's parent), so the
+# job works regardless of where it is launched from.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+echo "repo root: $(pwd)"
 
 LOG=outputs/logs
 SENT=outputs/sentinels
