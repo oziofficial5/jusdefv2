@@ -22,7 +22,7 @@ if PROJECT_ROOT not in sys.path:
 from src.model.jusdef_ledgar import JusDefLEDGAR
 
 
-SEEDS = [42, 43, 44, 45, 46]
+SEEDS = [42, 43, 44, 45, 46, 47, 48, 49, 50, 51]
 
 VARIANTS = {
     "mean":         ({"dmp_variant": "mean"},          "baseline_mean"),
