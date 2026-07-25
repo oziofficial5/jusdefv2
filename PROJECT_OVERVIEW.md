@@ -33,7 +33,7 @@ Defeasibility-aware graph neural network architectures have an empirically-ident
 | C1 | Diagnostic methodology (hypothesis-falsification chain over five candidates) | Methodological | 6 |
 | C2 | Y_exc and density-stratified evaluation protocols | Methodological | 3, 8 |
 | C3 | Cross-corpus density measurement (EUR-Lex 0.71%, ECtHR 0.58%, LEDGAR 20.03%) | Methodological / empirical | 5 |
-| C4 | 3000-sentence operator-annotated corpus with κ = 0.77 supervisor IAA | Resource | 5 |
+| C4 | 3000-sentence operator-annotated corpus with κ = 0.77 independent-annotator IAA | Resource | 5 |
 | C5 | Neural operator detector (validation macro-F1 = 0.977) | Resource | 5 |
 | C6 | v3 architecture grounded in three named prior failure modes | Architectural | 7 |
 | C7 | Three reduction theorems (Propositions 2, 3, 4) | Theoretical | 7 |
@@ -45,11 +45,11 @@ Defeasibility-aware graph neural network architectures have an empirically-ident
 
 ### 1. An expert-validated operator-annotated corpus
 
-3000 EUR-Lex sentences labelled with one of four operators (AFF, NEG, EXC, OVR) by an AI-assisted bulk-labelling pipeline, validated by two stages of inter-annotator agreement: a 100-sentence self-review (Cohen's κ = 0.79) and a 300-sentence supervisor blind annotation (Cohen's κ = 0.77, substantial agreement under Landis–Koch). The disagreement structure concentrates 58% of supervisor disagreements in a single linguistic pattern ("Unless X, Y" constructions), which is documented as a known limitation of the outermost-wins decision rule. The corpus, the 252-line annotation guidelines, and the IAA validation files are released as `data/annotations/` in the repository.
+3000 EUR-Lex sentences labelled with one of four operators (AFF, NEG, EXC, OVR) by an AI-assisted bulk-labelling pipeline, validated by two stages of inter-annotator agreement: a 100-sentence self-review (Cohen's κ = 0.79) and a 300-sentence independent-annotator blind annotation (Cohen's κ = 0.77, substantial agreement under Landis–Koch). The disagreement structure concentrates 58% of annotator disagreements in a single linguistic pattern ("Unless X, Y" constructions), which is documented as a known limitation of the outermost-wins decision rule. The corpus, the 252-line annotation guidelines, and the IAA validation files are released as `data/annotations/` in the repository.
 
 ### 2. A trained neural operator detector
 
-A fine-tuned LegalBERT classifier with held-out validation macro-F1 of 0.977. The detector reproduces the AI labelling function reliably; its end-to-end reliability against expert annotation is bounded by the supervisor κ = 0.77. The detector is applied to three legal corpora to produce per-sentence operator labels at scale, without per-corpus retraining. The checkpoint is released as `outputs/checkpoints/operator_detector_neural.pt`.
+A fine-tuned LegalBERT classifier with held-out validation macro-F1 of 0.977. The detector reproduces the AI labelling function reliably; its end-to-end reliability against expert annotation is bounded by the independent-annotator κ = 0.77. The detector is applied to three legal corpora to produce per-sentence operator labels at scale, without per-corpus retraining. The checkpoint is released as `outputs/checkpoints/operator_detector_neural.pt`.
 
 ### 3. The first systematic cross-corpus density measurement on legal text
 

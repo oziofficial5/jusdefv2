@@ -22,7 +22,7 @@
 | **C1** | Diagnostic methodology for attributing failure in defeasibility-aware GNNs (hypothesis-falsification chain on capacity, threshold, density) | Methodological | Ch. 6 |
 | **C2** | Y\_exc defeasibility-stratified evaluation protocol (no published precedent for multi-label legal classification) | Methodological | Ch. 3, Ch. 8 |
 | **C3** | **Two-corpus explicit operator density measurement** (EUR-Lex 0.71%, ECtHR 0.52-0.58%) — first systematic characterisation in legal NLP | Empirical | Ch. 6 |
-| **C4** | 3000-sentence operator-annotated corpus with expert IAA (Cohen's κ = 0.77 supervisor) | Resource | Ch. 5 |
+| **C4** | 3000-sentence operator-annotated corpus with expert IAA (Cohen's κ = 0.77 independent annotator) | Resource | Ch. 5 |
 | **C5** | Neural operator detector with documented density calibration (5.99% keyword → 0.71% neural on EUR-Lex; 0.58% on ECtHR) | Resource | Ch. 5 |
 | **C6** | v3 architecture (signal-preserving, signed-coefficient + soft attention) grounded in three NAMED prior failure modes | Architectural | Ch. 7 |
 | **C7** | Theoretical claims: v3 strictly generalises R-GCN (Prop 2) and recovers hard DMP as a limit case (Prop 3) | Theoretical | Ch. 7 |
@@ -130,7 +130,7 @@ This is C4 + C5 (primary resource contributions).
 - 5.4 AI-assisted annotation pipeline
 - 5.5 Inter-annotator agreement validation
   - Self-review (100 sentences, κ = 0.79)
-  - Supervisor blind annotation (300 sentences, κ = 0.77)
+  - Independent-annotator blind annotation (300 sentences, κ = 0.77)
   - Disagreement structure analysis (*"Unless X, Y"* concentration)
 - 5.6 The neural operator detector (val macro-F1 = 0.977)
 - 5.7 Dataset release

@@ -1340,7 +1340,7 @@ python scripts/eval\_all\_jusdef.py
 
 \- Y\_exc list constructed by a single annotator (first author) on 2026-04-12.  
 
-\- Pending: supervisor independently annotates the 21 EuroVoc labels. Compute Cohen’s κ; target ≥ 0.7. Refine guidelines or Y\_exc definition if disagreement is substantial.
+\- Pending: the independent annotator annotates the 21 EuroVoc labels. Compute Cohen’s κ; target ≥ 0.7. Refine guidelines or Y\_exc definition if disagreement is substantial.
 
 
 
@@ -1350,7 +1350,7 @@ python scripts/eval\_all\_jusdef.py
 
 \- Operator annotation task for the neural detector (3000 sentences) underway.  
 
-\- Pending: supervisor independently annotates a random 300-sentence subset. Compute Cohen’s κ; refine guidelines if κ < 0.7.
+\- Pending: the independent annotator annotates a random 300-sentence subset. Compute Cohen’s κ; refine guidelines if κ < 0.7.
 
 
 

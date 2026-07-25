@@ -2,14 +2,14 @@
 
 **Version 1.0**
 **Project:** JusDef — Defeasible Graph Neural Networks for Legal Document Classification
-**Annotator(s):** Awais Abdul Khaliq (primary), supervisor (IAA on 300-sentence subset)
+**Annotator(s):** Awais Abdul Khaliq (primary), annotator (IAA on 300-sentence subset)
 **Purpose:** Label EUR-LEX sentences with one of four scope operators to train a neural operator detector, replacing the keyword-based detector that currently leaves 94.5% of mention edges in the default class.
 
 ---
 
 ## 0. Why this document exists
 
-This is the single most important artifact for the thesis-level defensibility of the operator-detection experiment. An examiner will ask: *"How do we know your AFF/NEG/EXC/OVR decisions reflect a defensible legal interpretation rather than arbitrary judgement?"* The answer is: (a) these written guidelines, fixed **before** annotation begins, and (b) inter-annotator agreement (Cohen's κ ≥ 0.7) measured against the supervisor on a 300-sentence subset.
+This is the single most important artifact for the thesis-level defensibility of the operator-detection experiment. An examiner will ask: *"How do we know your AFF/NEG/EXC/OVR decisions reflect a defensible legal interpretation rather than arbitrary judgement?"* The answer is: (a) these written guidelines, fixed **before** annotation begins, and (b) inter-annotator agreement (Cohen's κ ≥ 0.7) measured against the annotator on a 300-sentence subset.
 
 **The cardinal rule of annotation: write the guidelines first, then annotate.** Do not invent decision rules at the end to justify labels you have already assigned. Every edge case you encounter that is not covered here gets added to Section 4 *before* you decide it, and that decision then applies to all future instances of the same pattern.
 
@@ -148,7 +148,7 @@ When in doubt on a derogation, check whether a specific provision is named. Name
 
 ## 5. Examples of disagreement, resolved in advance
 
-These are the patterns most likely to cause annotator disagreement. They are resolved here so that the primary annotator and the supervisor apply the same rule:
+These are the patterns most likely to cause annotator disagreement. They are resolved here so that the primary annotator and the annotator apply the same rule:
 
 1. **"May" vs. "shall"** — both AFF. Deontic strength does not change the operator; neither modifies scope.
 2. **Temporal scopes** — AFF. Timing is not an exception even though it limits when a rule applies.
@@ -223,18 +223,18 @@ After ~1000 annotations:
 
 1. Select 300 random sentences you have already labelled.
 2. Strip your labels from a copy; keep only the sentence text.
-3. Send the stripped copy plus **this guidelines document** to the supervisor.
-4. The supervisor annotates independently, applying these guidelines.
+3. Send the stripped copy plus **this guidelines document** to the annotator.
+4. The annotator annotates independently, applying these guidelines.
 5. Compute Cohen's κ:
 
 ```python
 from sklearn.metrics import cohen_kappa_score
-kappa = cohen_kappa_score(yours, supervisor)
+kappa = cohen_kappa_score(yours, annotator)
 print(f"Cohen's kappa: {kappa:.3f}")
 ```
 
 **Target: κ ≥ 0.7.** If lower:
-- Build a confusion matrix of your labels vs. the supervisor's.
+- Build a confusion matrix of your labels vs. the annotator's.
 - Identify which label pair is most often confused (likely NEG↔EXC or EXC↔OVR).
 - Refine the relevant Section 4 / Section 5 entry.
 - Optionally drop the disputed examples from the training set and note this in the methodology appendix.
