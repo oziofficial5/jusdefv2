@@ -1,7 +1,16 @@
+import argparse
+
 import torch
 
-v1 = torch.load("/home/francesco/Jusdef/outputs/checkpoints/jusdef_full_s42.pt", map_location="cpu")
-v2 = torch.load("/home/francesco/jusdefv2/jusdefv2/outputs/checkpoints/jusdef_v2_full_hd512_s42.pt", map_location="cpu")
+ap = argparse.ArgumentParser(
+    description="Compare per-module weight norms between a v1 and a v2 checkpoint."
+)
+ap.add_argument("v1", help="path to the v1 checkpoint (e.g. jusdef_full_s42.pt)")
+ap.add_argument("v2", help="path to the v2 checkpoint (e.g. jusdef_v2_full_hd512_s42.pt)")
+args = ap.parse_args()
+
+v1 = torch.load(args.v1, map_location="cpu")
+v2 = torch.load(args.v2, map_location="cpu")
 
 # Filter to common keys
 common = set(v1.keys()) & set(v2.keys())
