@@ -119,6 +119,13 @@ def main():
                      "significant_positive": bool(q_ < 0.05 and d_ > 0),
                      "per_seed_deltas": [float(x) for x in vals]})
     print("\n(Only bins with q<0.05 AND delta>0 are significant positives.)")
+    if n_seeds < len(args.seeds):
+        print()
+        print("!" * 78)
+        print(" WARNING: ran on %d of %d requested seeds (checkpoints missing for"
+              " the rest)." % (n_seeds, len(args.seeds)))
+        print(" This correction is a %d-SEED result. Chapter 7 must say so." % n_seeds)
+        print("!" * 78)
 
     # Persist, so the correction is an artefact rather than a console message.
     # Chapter 7's multiple-comparison section cites these numbers; they should

@@ -204,6 +204,17 @@ def main():
 
     if not seeds_used:
         raise SystemExit("No checkpoints found - nothing to do.")
+    if len(seeds_used) < len(args.seeds):
+        missing = [s for s in args.seeds if s not in seeds_used]
+        print()
+        print("!" * 78)
+        print(" WARNING: ran on %d of %d requested seeds. Missing: %s"
+              % (len(seeds_used), len(args.seeds), missing))
+        print(" Every figure and number derived from this run is a %d-SEED result."
+              % len(seeds_used))
+        print(" Label it as such. Do not quote it beside the ten-seed headline")
+        print(" without saying which panel each number comes from.")
+        print("!" * 78)
 
     # ---- report -----------------------------------------------------------
     report = {"seeds": seeds_used, "n_test": int(len(test)),
