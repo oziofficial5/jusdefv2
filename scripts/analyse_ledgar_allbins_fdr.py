@@ -9,7 +9,7 @@ Fills Table (all bins) in the paper.
 Usage:
     python scripts/analyse_ledgar_allbins_fdr.py --seeds 42 43 44 45 46 47 48 49 50 51
 """
-import argparse, os, pickle, sys
+import argparse, json, os, pickle, sys
 from pathlib import Path
 import numpy as np
 import torch
@@ -100,14 +100,37 @@ def main():
         names.append(name); deltas.append(vals.mean()); ps.append(p_one); ns.append(int(mask.sum()))
     q = bh(ps)
 
-    print("=" * 70)
-    print(f" ALL-BINS SIGNIFICANCE (Benjamini-Hochberg across {len(BINS)} bins)")
-    print("=" * 70)
-    print(f"{'bin':<10}{'N':>7}{'delta':>10}{'p(1-sided)':>13}{'q(BH)':>10}  sig")
+    n_seeds = max(len([x for x in per_bin[b] if not np.isnan(x)]) for b, _, _ in BINS)
+    print("=" * 78)
+    print(f" ALL-BINS SIGNIFICANCE (Benjamini-Hochberg across {len(BINS)} bins,"
+          f" {n_seeds} seeds)")
+    print("=" * 78)
+    print(f"{'bin':<10}{'N':>7}{'delta':>10}{'sd':>9}{'p(1-sided)':>13}{'q(BH)':>10}  sig")
+    rows = []
     for name, d_, p_, q_, n_ in zip(names, deltas, ps, q, ns):
+        vals = np.array([x for x in per_bin[name] if not np.isnan(x)])
+        sd = float(vals.std(ddof=1)) if len(vals) > 1 else float("nan")
         sig = "*" if (q_ < 0.05 and d_ > 0) else ""
-        print(f"{name:<10}{n_:>7}{d_:>+10.4f}{p_:>13.4f}{q_:>10.4f}  {sig}")
+        print(f"{name:<10}{n_:>7}{d_:>+10.4f}{sd:>9.4f}{p_:>13.4f}{q_:>10.4f}  {sig}")
+        rows.append({"bin": name, "N": n_, "delta": float(d_), "sd": sd,
+                     "n_seeds": int(len(vals)),
+                     "seeds_positive": int((vals > 0).sum()),
+                     "p_one_sided": float(p_), "q_bh": float(q_),
+                     "significant_positive": bool(q_ < 0.05 and d_ > 0),
+                     "per_seed_deltas": [float(x) for x in vals]})
     print("\n(Only bins with q<0.05 AND delta>0 are significant positives.)")
+
+    # Persist, so the correction is an artefact rather than a console message.
+    # Chapter 7's multiple-comparison section cites these numbers; they should
+    # be regenerable, and the per-bin deltas here are also the data behind the
+    # density-stratified headline figure.
+    out = Path("outputs/logs/ledgar_allbins_fdr.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(
+        {"seeds": list(args.seeds), "n_seeds_used": n_seeds,
+         "fdr_level": 0.05, "test": "one-sided one-sample t on across-seed deltas",
+         "bins": rows}, indent=2))
+    print("wrote", out)
 
 
 if __name__ == "__main__":

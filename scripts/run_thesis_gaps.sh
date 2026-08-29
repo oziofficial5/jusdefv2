@@ -1,8 +1,10 @@
 #!/bin/bash
 # =============================================================================
-# Two outstanding thesis experiments, in one job.
+# Three outstanding thesis analyses, in one job.
 #
-# Both close gaps that the thesis names as open. Neither needs new data.
+# All three close gaps the thesis names as open. None needs new data: parts 1
+# and 3 are inference over the released test split with existing checkpoints,
+# and part 2 retrains on graphs that are already built.
 #
 # -----------------------------------------------------------------------------
 # PART 1 — sentence-count stratification of the LEDGAR operating regime
@@ -66,14 +68,18 @@
 #   SMOKE=1 bash scripts/run_thesis_gaps.sh          # wiring check, ~15 min
 #   sbatch run_thesis_gaps.slurm                     # the real thing
 #
-# Run one part only:
+# Run one part only (parts 1 and 3 are the cheap inference ones; if GPU time is
+# short, run "PARTS=1 3" first — together they take minutes and they unblock
+# both the Chapter 1 headline figure and Chapter 7's multiple-comparison section):
 #   PARTS=1 bash scripts/run_thesis_gaps.sh
 #   PARTS=2 bash scripts/run_thesis_gaps.sh
+#   PARTS="1 3" bash scripts/run_thesis_gaps.sh
 #
 # Outputs:
 #   outputs/logs/ledgar_length_stratified.json
 #   outputs/logs/jusdef_v1_corrected_s{42,43,44}.json
 #   outputs/logs/jusdef_abl_{reverse_edges,authority_grad,ontology_edges}_s42.json
+#   outputs/logs/ledgar_allbins_fdr.json
 #   outputs/logs/run_thesis_gaps_summary.txt
 # =============================================================================
 set -euo pipefail
@@ -85,7 +91,7 @@ LOG=outputs/logs
 SENT=outputs/sentinels
 mkdir -p "$CKPT" "$LOG" "$SENT"
 
-PARTS="${PARTS:-1 2}"
+PARTS="${PARTS:-1 2 3}"
 LEDGAR_SEEDS="${LEDGAR_SEEDS:-42 43 44 45 46 47 48 49 50 51}"
 V1_SEEDS="${V1_SEEDS:-42 43 44}"
 ABL_SEEDS="${ABL_SEEDS:-42}"
@@ -235,6 +241,37 @@ if m is not None and n:
         print("  nine-point gap to R-GCN predates them entirely.")
     print("  v1 trails R-GCN by %.4f." % gap)
 PY
+fi
+
+# -----------------------------------------------------------------------------
+# PART 3 — per-bin density-stratified deltas and the BH correction, on TEN seeds
+# -----------------------------------------------------------------------------
+# Why this is here: the per-bin analysis has only ever been run on the five-seed
+# panel (42-46), because that is the largest panel for which per-bin macro-F1 was
+# recorded. The ten-seed checkpoints exist, so re-running the same analysis over
+# seeds 42-51 costs one inference pass and buys three things at once:
+#
+#   1. The multiple-comparison correction of Chapter 7 becomes a ten-seed
+#      result. The chapter currently reports it on five seeds and says so.
+#   2. The six per-bin raw and BH-adjusted p-values become an artefact
+#      (outputs/logs/ledgar_allbins_fdr.json) rather than a console message.
+#      Chapter 7 cites those numbers; they should be regenerable.
+#   3. The per-bin deltas become the data for the Chapter 1 headline figure on
+#      a single uniform panel, removing the current split where the across-bin
+#      view is five-seed and the headline number is ten-seed.
+#
+# Inference only, over the released test split. Minutes, not hours.
+if [[ " $PARTS " == *" 3 "* ]]; then
+    say ""
+    say "--- PART 3: per-bin deltas + BH correction, ten seeds ---"
+    s="$SENT/allbins_fdr_10seed${SFX}.done"
+    if [[ -f "$s" ]]; then
+        say "  sentinel present, skipping"
+    else
+        python scripts/analyse_ledgar_allbins_fdr.py \
+            --seeds $LEDGAR_SEEDS 2>&1 | tee -a "$SUMMARY"
+        touch "$s"
+    fi
 fi
 
 say ""
