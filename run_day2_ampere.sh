@@ -77,9 +77,19 @@ say "STAGE 1  F7  Sentence segmentation audit"
 $PY - <<'PYEOF' | tee outputs/day2/f7_segmentation.txt
 # The deployed segmenter is  re.split(r"(?<=[.;])\s+", text)  from
 # src/preprocess/operator_detector.py:62. It splits on semicolons and has no
-# abbreviation guard. n is the denominator of d_p, so any systematic error here
-# propagates straight into the density-stratified protocol.
-import pickle, re, os, statistics
+# abbreviation guard. n is the denominator of d_p, so error here propagates
+# straight into the density-stratified protocol -- and differentially, because
+# EUR-Lex enumerations are semicolon-heavy in a way contract clauses are not.
+import re, statistics, collections
+
+def lex(cfg, split):
+    """trust_remote_code is required by some datasets versions and rejected by
+    others; try both rather than fail unattended."""
+    from datasets import load_dataset
+    try:
+        return load_dataset("coastalcph/lex_glue", cfg, split=split, trust_remote_code=True)
+    except TypeError:
+        return load_dataset("coastalcph/lex_glue", cfg, split=split)
 
 DEPLOYED = re.compile(r"(?<=[.;])\s+")
 PERIOD   = re.compile(r"(?<=[.])\s+")
@@ -87,63 +97,45 @@ ABBREV = re.compile(r"(?:art|arts|no|nos|para|paras|pp|cf|eg|e\.g|ie|i\.e|reg|di
                     r"sec|ch|vol|fig|al|etc|approx|ibid)\.$", re.I)
 
 def guarded(text):
-    """Period split, then re-join a fragment whose predecessor ended in a known
-    abbreviation or a bare numeral (e.g. 'Article 5.' inside a citation)."""
-    parts = PERIOD.split(text)
-    out = []
-    for p in parts:
+    parts, out = PERIOD.split(text), []
+    for q in parts:
         if out and (ABBREV.search(out[-1].strip()) or re.search(r"\b\d+\.$", out[-1].strip())):
-            out[-1] = out[-1] + " " + p
+            out[-1] = out[-1] + " " + q
         else:
-            out.append(p)
+            out.append(q)
     return out
 
-for split in ("test", "validation", "train"):
-    path = "data/processed/%s_processed.pkl" % split
-    if not os.path.isfile(path):
-        continue
-    docs = pickle.load(open(path, "rb"))
-    dep, per, gua, semis, shortfrag, lower_start = [], [], [], 0, 0, 0
-    nsec = 0
-    for d in docs[:2000]:
-        for s in d.get("sections", []):
-            t = s.get("text") or ""
-            if not t.strip():
-                continue
-            nsec += 1
-            a = DEPLOYED.split(t); b = PERIOD.split(t); c = guarded(t)
-            dep.append(len(a)); per.append(len(b)); gua.append(len(c))
-            semis += len(a) - len(b)
-            for frag in a:
-                f = frag.strip()
-                if f and len(f) < 25:
-                    shortfrag += 1
-                if f and f[0].islower():
-                    lower_start += 1
-    if not nsec:
-        continue
-    periods = sum(1 for d in docs[:2000] for s in d.get("sections", [])
-                  if "." in (s.get("text") or ""))
-    print("\n=== %s split : %d sections sampled ===" % (split, nsec))
-    if periods < nsec * 0.5 or statistics.mean(dep) < 1.5:
-        print("  *** INPUT LOOKS TRUNCATED: only %d of %d sections contain a period," % (periods, nsec))
-        print("  *** and the mean segment count is %.2f. The local dev checkout stores" % statistics.mean(dep))
-        print("  *** section text clipped to 500 characters; the figures below are")
-        print("  *** meaningless on such a copy. Re-run against the full pipeline output.")
-        continue
-    print("  mean segments/section, deployed (split on . and ;) : %.3f" % statistics.mean(dep))
-    print("  mean segments/section, period only                 : %.3f" % statistics.mean(per))
-    print("  mean segments/section, period + abbreviation guard  : %.3f" % statistics.mean(gua))
-    infl_semi = 100.0 * (statistics.mean(dep) / statistics.mean(per) - 1)
-    infl_abbr = 100.0 * (statistics.mean(per) / statistics.mean(gua) - 1)
-    print("  --> semicolon splitting inflates n by %+.1f%%" % infl_semi)
-    print("  --> unguarded abbreviations inflate n by a further %+.1f%%" % infl_abbr)
-    print("  --> d_p = k/n is therefore DEFLATED by roughly %.1f%% overall" %
-          (100.0 * (1 - statistics.mean(gua) / statistics.mean(dep))))
-    print("  segments shorter than 25 chars : %d (%.1f%% of all segments)"
-          % (shortfrag, 100.0 * shortfrag / max(1, sum(dep))))
-    print("  segments starting lower-case   : %d (%.1f%%)  <- likely spurious splits"
-          % (lower_start, 100.0 * lower_start / max(1, sum(dep))))
+for cfg, split, cap in (("eurlex", "test", 5000), ("ledgar", "test", 10000)):
+    print("\n=== %s / %s ===" % (cfg, split), flush=True)
+    try:
+        ds = lex(cfg, split)
+    except Exception as e:
+        print("  could not load: %s" % e); continue
+    texts = [t for t in ds["text"][:cap] if t and t.strip()]
+    dep = [len(DEPLOYED.split(t)) for t in texts]
+    per = [len(PERIOD.split(t)) for t in texts]
+    gua = [len(guarded(t)) for t in texts]
+    md, mp, mg = statistics.mean(dep), statistics.mean(per), statistics.mean(gua)
+    print("  documents/paragraphs        : %d" % len(texts))
+    print("  total segments, deployed    : %d" % sum(dep))
+    print("  mean segments, deployed     : %.4f" % md)
+    print("  mean segments, period only  : %.4f" % mp)
+    print("  mean segments, period+guard : %.4f" % mg)
+    print("  --> semicolons inflate n by  %+.1f%%" % (100.0 * (md / mp - 1)))
+    print("  --> abbreviations inflate by %+.1f%%" % (100.0 * (mp / mg - 1)))
+    print("  --> d_p = k/n deflated by    %.1f%% overall" % (100.0 * (1 - mg / md)))
+    if cfg == "ledgar":
+        c = collections.Counter(dep)
+        one = 100.0 * c[1] / len(dep)
+        print("  single-segment paragraphs   : %d (%.1f%%)   [thesis: 4,415 = 44.2%%]" % (c[1], one))
+        print("  thesis Table 3.x claims 22,615 sentences over 10,000 paragraphs, mean 2.26")
+        print("  measured here: %d segments, mean %.4f" % (sum(dep), md))
+        elig = sum(1 for n in dep if n >= 6)
+        print("  n >= 6 (10-20%% band eligible): %d   [thesis: 523]" % elig)
+print("""
+The number that matters is the DIFFERENCE between the two corpora. d_p is
+compared across them, so a segmenter that inflates n more on one than the other
+biases the comparison itself, independently of how it treats either alone.""")
 PYEOF
 mark day2_f7; fi
 
@@ -241,108 +233,129 @@ say "STAGE 3  F1  Build natural-prior detector-validation sample"
 $PY - <<'PYEOF' | tee outputs/day2/f1_sample_build.txt
 # The LEDGAR validation is stratified BY DETECTOR PREDICTION, which fixes the
 # predicted marginals and so cannot estimate P(predicted non-AFF | true AFF) --
-# the quantity that decides whether EUR-Lex 0.71% is a measurement or the
-# detector's own false-positive floor.
+# the quantity deciding whether EUR-Lex 0.71% is a measurement or the detector's
+# own false-positive floor.
 #
-# This draws a two-stratum sample WITH KNOWN WEIGHTS so both directions are
-# estimable and can be reweighted to a natural-prior figure with an interval:
-#   stratum A: 250 edges the detector calls AFF      -> bounds missed density
-#   stratum B: 150 edges the detector calls non-AFF  -> bounds precision
-import pickle, re, os, random, io, collections
+# Sampling here is per SENTENCE, not per mention edge, because the processed
+# pkls are stubs and carry no concept spans. That is deliberate: 3.6.1 flags
+# re-expressing EUR-Lex per-sentence as an outstanding item, so this closes it
+# as well. Two strata with known weights make both error directions estimable.
+import re, io, os, random, collections, math, json
+import torch, torch.nn as nn
+from transformers import AutoTokenizer, AutoModel
+
+def lex(cfg, split):
+    """trust_remote_code is required by some datasets versions and rejected by
+    others; try both rather than fail unattended."""
+    from datasets import load_dataset
+    try:
+        return load_dataset("coastalcph/lex_glue", cfg, split=split, trust_remote_code=True)
+    except TypeError:
+        return load_dataset("coastalcph/lex_glue", cfg, split=split)
 
 random.seed(20260904)
-N_AFF, N_NONAFF = 250, 150
-SPLIT = "test"
-
-path = "data/processed/%s_processed.pkl" % SPLIT
-docs = pickle.load(open(path, "rb"))
-print("loaded %d docs from %s" % (len(docs), path))
-
-# The LexGLUE EUR-Lex test split holds 5,000 documents. Anything far short of
-# that is the truncated dev stub, whose section text is clipped to 500 chars --
-# a sample drawn from it is not a sample of the test split and must not be
-# annotated. The full graphs can be present while these pkls are stubs.
-if len(docs) < 1000:
-    print("""
-  *** ABORTING: %d documents, expected ~5,000.
-  *** This is the truncated dev copy, not the full processed test split, so any
-  *** sample drawn here would misrepresent the corpus. Stage 1 hits the same
-  *** wall for the same reason.
-  ***
-  *** A real text source is needed. Likely candidates on this machine:
-  ***     data/raw/                        (gitignored; the preprocessing input)
-  ***     the LexGLUE eurlex split via datasets.load_dataset("coastalcph/lex_glue","eurlex")
-  *** Re-run stages 1 and 3 with --source pointed at whichever exists:
-  ***     rm outputs/sentinels/day2_f7.done outputs/sentinels/day2_f1.done
-  """ % len(docs))
-    raise SystemExit(0)
-
+N_AFF, N_NONAFF, POOL = 250, 150, 60000
+CKPT = "outputs/checkpoints/operator_detector_neural.pt"
 SENT = re.compile(r"(?<=[.;])\s+")
 
-def governing(text, start):
-    """Same rule as detect_operators_in_section, so the sampled unit is exactly
-    the unit the deployed detector scores."""
-    cc = 0
-    for s in SENT.split(text):
-        cc += len(s) + 1
-        if cc >= start:
-            return s
-    return text
+class OperatorClassifier(nn.Module):
+    def __init__(self, backbone_name, num_classes=4):
+        super().__init__()
+        self.backbone = AutoModel.from_pretrained(backbone_name)
+        self.dropout = nn.Dropout(0.1)
+        self.head = nn.Linear(self.backbone.config.hidden_size, num_classes)
+    def forward(self, input_ids, attention_mask):
+        out = self.backbone(input_ids=input_ids, attention_mask=attention_mask)
+        return self.head(self.dropout(out.last_hidden_state[:, 0]))
 
-edges = []
-for di, d in enumerate(docs):
-    for si, s in enumerate(d.get("sections", [])):
-        t = s.get("text") or ""
-        for ci, c in enumerate(s.get("concepts", []) or []):
-            op = (c.get("operator") or "AFF").upper()
-            edges.append((di, si, ci, op, int(c.get("span_start") or 0), c.get("phrase", "")))
+INT2 = {0: "AFF", 1: "NEG", 2: "EXC", 3: "OVR"}
 
-print("total mention edges in %s split : %d" % (SPLIT, len(edges)))
-dist = collections.Counter(e[3] for e in edges)
-tot = float(len(edges))
-nonaff = sum(v for k, v in dist.items() if k != "AFF")
-print("operator distribution: %s" % dict(dist))
-print("non-AFF density on this split : %.4f%%  (%d edges)" % (100.0 * nonaff / tot, nonaff))
+if not os.path.exists(CKPT):
+    print("  detector checkpoint missing at %s -- cannot sample." % CKPT); raise SystemExit(1)
+state = torch.load(CKPT, map_location="cpu")
+backbone = state["config"]["backbone"]
+device = "cuda" if torch.cuda.is_available() else "cpu"
+print("device %s | backbone %s | detector val_macro_f1 %s"
+      % (device, backbone, state.get("val_macro_f1", "n/a")), flush=True)
+tok = AutoTokenizer.from_pretrained(backbone)
+model = OperatorClassifier(backbone).to(device)
+model.load_state_dict(state["state_dict"])
+model.eval()
 
-pool_aff = [e for e in edges if e[3] == "AFF"]
-pool_non = [e for e in edges if e[3] != "AFF"]
-sa = random.sample(pool_aff, min(N_AFF, len(pool_aff)))
-sb = random.sample(pool_non, min(N_NONAFF, len(pool_non)))
-print("stratum A (predicted AFF)     : %d sampled from %d" % (len(sa), len(pool_aff)))
-print("stratum B (predicted non-AFF) : %d sampled from %d" % (len(sb), len(pool_non)))
+ds = lex("eurlex", "test")
+sents = []
+for t in ds["text"]:
+    if t and t.strip():
+        for x in SENT.split(t):
+            x = x.strip()
+            if 20 <= len(x) <= 1200:
+                sents.append(x)
+print("EUR-Lex test: %d documents -> %d sentences" % (len(ds), len(sents)), flush=True)
 
-rows = []
-for stratum, sample in (("A_pred_AFF", sa), ("B_pred_nonAFF", sb)):
-    for (di, si, ci, op, start, phrase) in sample:
-        text = docs[di]["sections"][si].get("text") or ""
-        rows.append((stratum, op, phrase, governing(text, start).replace("\t", " ").strip()))
+random.shuffle(sents)
+pool = sents[:POOL]
+print("scoring a uniform random pool of %d sentences ..." % len(pool), flush=True)
+
+@torch.no_grad()
+def predict(batch):
+    enc = tok(batch, truncation=True, padding="max_length", max_length=128,
+              return_tensors="pt").to(device)
+    return model(enc["input_ids"], enc["attention_mask"]).argmax(-1).tolist()
+
+preds = []
+for i in range(0, len(pool), 128):
+    preds.extend(predict(pool[i:i + 128]))
+    if i % 12800 == 0:
+        print("  %d/%d" % (i, len(pool)), flush=True)
+labels = [INT2[p] for p in preds]
+
+dist = collections.Counter(labels)
+n = len(labels)
+k = sum(v for lab, v in dist.items() if lab != "AFF")
+phat = k / float(n)
+z = 1.96
+den = 1 + z * z / n
+cen = (phat + z * z / (2 * n)) / den
+half = z * math.sqrt(phat * (1 - phat) / n + z * z / (4 * n * n)) / den
+print("\n=== per-sentence non-AFF density on a uniform random sample ===")
+print("  distribution : %s" % dict(dist))
+print("  non-AFF      : %d/%d = %.4f%%" % (k, n, 100 * phat))
+print("  95%% Wilson   : [%.4f%%, %.4f%%]" % (100 * (cen - half), 100 * (cen + half)))
+print("  thesis reports 0.71%% over MENTION EDGES; this is the per-sentence")
+print("  figure 3.6.1 lists as an outstanding recomputation.")
+
+aff = [s for s, l in zip(pool, labels) if l == "AFF"]
+non = [(s, l) for s, l in zip(pool, labels) if l != "AFF"]
+sa = random.sample(aff, min(N_AFF, len(aff)))
+sb = random.sample(non, min(N_NONAFF, len(non)))
+print("\n  stratum A (predicted AFF)     : %d of %d" % (len(sa), len(aff)))
+print("  stratum B (predicted non-AFF) : %d of %d" % (len(sb), len(non)))
+
+rows = [("A_pred_AFF", "AFF", x) for x in sa] + [("B_pred_nonAFF", l, x) for x, l in sb]
 random.shuffle(rows)
-
-out = "outputs/day2/f1_eurlex_validation_blind.tsv"
-with io.open(out, "w", encoding="utf-8") as f:
-    f.write("idx\thuman_op\tconcept\tsentence\n")
-    for i, (st, op, phrase, sent) in enumerate(rows, 1):
-        f.write("%d\t\t%s\t%s\n" % (i, phrase, sent))
-print("\nBLIND annotation file (no labels, shuffled): %s" % out)
-
-key = "outputs/day2/f1_eurlex_validation_KEY.tsv"
-with io.open(key, "w", encoding="utf-8") as f:
-    f.write("idx\tstratum\tdetector_op\tconcept\tsentence\n")
-    for i, (st, op, phrase, sent) in enumerate(rows, 1):
-        f.write("%d\t%s\t%s\t%s\t%s\n" % (i, st, op, phrase, sent))
-print("KEY (detector labels, do NOT open before annotating): %s" % key)
-
-with io.open("outputs/day2/f1_weights.txt", "w", encoding="utf-8") as f:
-    f.write("N_pred_AFF_population=%d\nN_pred_nonAFF_population=%d\n"
-            "n_pred_AFF_sampled=%d\nn_pred_nonAFF_sampled=%d\n"
-            % (len(pool_aff), len(pool_non), len(sa), len(sb)))
-print("reweighting weights: outputs/day2/f1_weights.txt")
+os.makedirs("outputs/day2", exist_ok=True)
+with io.open("outputs/day2/f1_eurlex_validation_blind.tsv", "w", encoding="utf-8") as f:
+    f.write("idx\thuman_op\tsentence\n")
+    for i, (st, l, x) in enumerate(rows, 1):
+        f.write("%d\t\t%s\n" % (i, x.replace("\t", " ")))
+with io.open("outputs/day2/f1_eurlex_validation_KEY.tsv", "w", encoding="utf-8") as f:
+    f.write("idx\tstratum\tdetector_op\tsentence\n")
+    for i, (st, l, x) in enumerate(rows, 1):
+        f.write("%d\t%s\t%s\t%s\n" % (i, st, l, x.replace("\t", " ")))
+json.dump({"pool_scored": n, "pred_AFF_population": len(aff),
+           "pred_nonAFF_population": len(non), "n_sampled_AFF": len(sa),
+           "n_sampled_nonAFF": len(sb), "pointwise_nonaff_rate": phat},
+          open("outputs/day2/f1_weights.json", "w"), indent=2)
 print("""
-NEXT: annotate the blind file's human_op column against the guidelines
-(Appendix A), WITHOUT looking at the KEY. Then the two strata reweight to a
-natural-prior estimate of the true non-AFF density with a Wilson interval,
-which is what F1 asks for. Expected direction of the result FAVOURS the thesis:
-a lower true floor strengthens every negative EUR-Lex result.""")
+  blind file : outputs/day2/f1_eurlex_validation_blind.tsv
+  key        : outputs/day2/f1_eurlex_validation_KEY.tsv  (do not open first)
+  weights    : outputs/day2/f1_weights.json
+
+NEXT: annotate human_op in the blind file against the guidelines (Appendix A),
+without the key. The two strata then reweight to a natural-prior estimate of the
+true non-AFF rate with an interval -- which is what F1 asks for, and which the
+prediction-stratified LEDGAR design cannot give. Expected direction favours the
+thesis: a lower true floor strengthens every negative EUR-Lex result.""")
 PYEOF
 mark day2_f1; fi
 
