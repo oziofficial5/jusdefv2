@@ -10,9 +10,9 @@
 #      bash run_day2_ampere.sh 2>&1 | tee logs/day2_$(date +%Y%m%d_%H%M).log
 #      #  detach with  ctrl-b d      reattach with  tmux attach -t day2
 #
-#  Stages 1-4 are diagnostics and finish in minutes. Stage 5 is the GPU job and
-#  takes 16-24 h. Diagnostics run FIRST so you get answers before the long job
-#  starts. Every stage writes a sentinel to outputs/sentinels/ and is skipped on
+#  Stages 1-4 are diagnostics and finish in minutes. Stage 5 is inference over
+#  the v1 checkpoints run_thesis_gaps.sh PART 2 already produced -- it does NOT
+#  retrain. Every stage writes a sentinel to outputs/sentinels/ and is skipped on
 #  a re-run, so you can safely re-invoke after fixing any single stage.
 #
 #  Set SKIP_TRAIN=1 to run only the diagnostics:
@@ -338,54 +338,50 @@ say "STAGE 4  F11  Locate the LEDGAR cross-genre validation (kappa = 0.867)"
 mark day2_f11; fi
 
 # =============================================================================
-# STAGE 5  --  GPU : v1 reconstruction under the corrected protocol
+# STAGE 5  --  Y_exc on the v1 checkpoints
 # =============================================================================
-say "STAGE 5  GPU  v1 reconstruction (--ablate all)"
+say "STAGE 5  Y_exc evaluation of v1"
 
-if [ "${SKIP_TRAIN:-0}" = "1" ]; then
-  echo "  SKIP_TRAIN=1 set -- stopping before the GPU job."
-  say "Day 2 diagnostics complete -- $(date)"
-  exit 0
-fi
+# NOTE: v1 is already trained. scripts/run_thesis_gaps.sh PART 2 ran three seeds
+# under --ablate all plus the three single-correction ablations (~16 h), giving
+#     v1 0.1717 +/- 0.0609 | v2 0.1822 +/- 0.0163 | R-GCN 0.2731
+# which dissolves Chapter 6's anomaly. Do NOT retrain that here.
+#
+# What PART 2 left open: it measured OVERALL macro-F1, but the v1 workshop
+# paper's claim was +6.0 on Y_exc specifically. That is inference over existing
+# checkpoints -- minutes, not hours.
 
-if [ ! -f data/processed/graphs/train_graphs.pt ]; then
-  echo "  *** data/processed/graphs/train_graphs.pt is MISSING. ***"
-  echo "  Stages 1-4 of the main pipeline would have to re-run first (15-26 h),"
-  echo "  which does not fit in one GPU day. Stopping rather than burning the slot."
+V1_LOGS=$(ls outputs/logs/jusdef_v1_corrected*_s*.json 2>/dev/null | wc -l)
+V1_CKPTS=$(ls outputs/checkpoints/jusdef_v1_corrected*_s*.pt 2>/dev/null | wc -l)
+echo "  v1 training logs found : $V1_LOGS"
+echo "  v1 checkpoints found   : $V1_CKPTS"
+
+if [ "$V1_LOGS" -eq 0 ]; then
+  echo
+  echo "  No v1 results present. PART 2 has not run in this checkout:"
+  echo "      PARTS=2 bash scripts/run_thesis_gaps.sh 2>&1 | tee outputs/logs/gaps_part2.log"
+  echo "  That is the ~16 h job. Run it before this stage."
   exit 1
 fi
 
-# Chapter 6 opens from v2 underperforming R-GCN by nine macro-F1 points, calling
-# that ANOMALOUS -- which presumes v1 was ahead of R-GCN on the same protocol.
-# That number appears nowhere in the thesis. --ablate all switches off F1, F2 and
-# F3a together, reconstructing the v1 workshop architecture under the corrected
-# threshold protocol. Reference points, three-seed means already in the logs:
-#     R-GCN  0.2731     v2  0.1822
-# If v1 lands near R-GCN the anomaly is real. If it lands near v2 it dissolves,
-# and Chapter 6 gets simpler.
-for SEED in 42 43; do
-  if done_already "day2_v1_s${SEED}"; then
-    echo "  seed ${SEED} already done, skipping"; continue
-  fi
-  say "v1 reconstruction, seed ${SEED}  --  started $(date)"
-  $PY scripts/train_jusdef.py \
-      --ablate all \
-      --seed "${SEED}" \
-      --tag v1_recon \
-      --graph_dir data/processed/graphs \
-      2>&1 | tee "logs/v1_recon_s${SEED}.log"
-  if [ -f "outputs/logs/jusdef_v1_recon_s${SEED}.json" ]; then
-    mark "day2_v1_s${SEED}"
-    echo "  seed ${SEED} finished $(date)"
-  else
-    echo "  *** seed ${SEED} produced no log -- check logs/v1_recon_s${SEED}.log ***"
-  fi
-done
+if [ "$V1_CKPTS" -eq 0 ]; then
+  echo
+  echo "  v1 logs exist but the checkpoints do not, so Y_exc cannot be computed"
+  echo "  without retraining. If the checkpoints were cleaned up, re-run PART 2."
+  exit 1
+fi
+
+if done_already day2_yexc; then
+  say "  Y_exc already computed, skipping"
+else
+  $PY scripts/eval_v1_yexc.py 2>&1 | tee outputs/day2/v1_yexc.txt
+  if [ -f outputs/logs/v1_yexc.json ]; then mark day2_yexc; fi
+fi
 
 say "Summary"
 $PY - <<'PYEOF'
 import json, glob, os
-print("  %-34s %-10s %s" % ("run", "seed", "test macro-F1"))
+
 def grab(d):
     for k in ("test_macro_f1", "test_macro_F1", "macro_f1", "test_f1"):
         if isinstance(d, dict) and k in d:
@@ -396,28 +392,34 @@ def grab(d):
             if r is not None:
                 return r
     return None
-for pat, name in (("outputs/logs/baseline_rgcn_seed*.json", "R-GCN (reference)"),
-                  ("outputs/logs/jusdef_full_s*.json",      "v2 (reference)"),
-                  ("outputs/logs/jusdef_v1_recon_s*.json",  "v1 reconstruction")):
+
+print("  overall test macro-F1, for reference:")
+for pat, name in (("outputs/logs/baseline_rgcn_seed*.json",    "R-GCN"),
+                  ("outputs/logs/jusdef_full_s*.json",         "v2"),
+                  ("outputs/logs/jusdef_v1_corrected*_s*.json", "v1")):
     vals = []
     for f in sorted(glob.glob(pat)):
         try:
             v = grab(json.load(open(f)))
         except Exception:
             v = None
-        seed = os.path.basename(f).split("s")[-1].split(".")[0]
         if v is not None:
             vals.append(v)
-            print("  %-34s %-10s %.4f" % (name, seed, v))
-    if len(vals) > 1:
+    if vals:
         m = sum(vals) / len(vals)
-        print("  %-34s %-10s %.4f  <- mean" % ("", "", m))
-print("""
-  Read against the thesis: R-GCN 0.2731, v2 0.1822 (three-seed means).
-  v1 near R-GCN  -> Chapter 6's 'anomaly' framing is vindicated; cite the number.
-  v1 near v2     -> the anomaly dissolves; v1 was never ahead, and the workshop
-                    paper's advantage was an artefact of the old threshold
-                    protocol. Chapter 6 gets shorter and more defensible.""")
+        print("    %-8s %.4f  (n=%d)" % (name, m, len(vals)))
+
+p = "outputs/logs/v1_yexc.json"
+if os.path.exists(p):
+    d = json.load(open(p))
+    ys = [r["test_yexc_macro_f1"] for r in d.values()]
+    print("\n  v1 Y_exc macro-F1: %.4f over %d seeds" % (sum(ys) / len(ys), len(ys)))
+    print("""
+  The workshop paper claimed +6.0 over R-GCN on Y_exc. Compare the figure above
+  against R-GCN's Y_exc under the same protocol (scripts/eval_rgcn_detailed.py
+  computes it) to settle whether that claim survives the corrected protocol.
+  Either answer is reportable; below R-GCN is the cleaner one for the thesis,
+  because it makes the negative EUR-Lex result uniform across metrics.""")
 PYEOF
 
 say "Day 2 complete -- $(date)"
