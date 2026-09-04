@@ -160,13 +160,31 @@ from src.preprocess.operator_detector import detect_operator
 
 PATH = "ledgar_detector_sample.tsv"
 rows = [l.rstrip("\n").split("\t") for l in io.open(PATH, encoding="utf-8")]
-hdr, data = rows[0], [r for r in rows[1:] if len(r) >= 4]
+hdr = [h.strip() for h in rows[0]]
+# Resolve by header name: the file gained a keyword_op column when the recovered
+# human annotations were installed, so fixed indices are not safe.
+try:
+    I_DET = hdr.index("detector_op")
+    I_HUM = hdr.index("human_op")
+    I_SENT = hdr.index("sentence")
+except ValueError:
+    print("  *** unexpected header: %s" % hdr)
+    print("  *** expected columns detector_op, human_op, sentence")
+    raise SystemExit(1)
+need = max(I_DET, I_HUM, I_SENT) + 1
+data = [r for r in rows[1:] if len(r) >= need]
 print("loaded %d sentences from %s" % (len(data), PATH))
+print("columns: %s" % hdr)
 
-human = [r[2].strip().upper() for r in data]
-neural = [r[1].strip().upper() for r in data]
-sents = [r[3] for r in data]
+human = [r[I_HUM].strip().upper() for r in data]
+neural = [r[I_DET].strip().upper() for r in data]
+sents = [r[I_SENT] for r in data]
 keyword = [detect_operator(s) for s in sents]
+
+if sents and all(len(x.strip()) <= 4 for x in sents[:10]):
+    print("  *** the sentence column looks like labels, not text -- column")
+    print("  *** resolution failed. Aborting rather than reporting nonsense.")
+    raise SystemExit(1)
 
 io.open("outputs/day2/f5_keyword_predictions.tsv", "w", encoding="utf-8").write(
     "idx\tdetector_op\tkeyword_op\thuman_op\tsentence\n" +
@@ -239,6 +257,25 @@ SPLIT = "test"
 path = "data/processed/%s_processed.pkl" % SPLIT
 docs = pickle.load(open(path, "rb"))
 print("loaded %d docs from %s" % (len(docs), path))
+
+# The LexGLUE EUR-Lex test split holds 5,000 documents. Anything far short of
+# that is the truncated dev stub, whose section text is clipped to 500 chars --
+# a sample drawn from it is not a sample of the test split and must not be
+# annotated. The full graphs can be present while these pkls are stubs.
+if len(docs) < 1000:
+    print("""
+  *** ABORTING: %d documents, expected ~5,000.
+  *** This is the truncated dev copy, not the full processed test split, so any
+  *** sample drawn here would misrepresent the corpus. Stage 1 hits the same
+  *** wall for the same reason.
+  ***
+  *** A real text source is needed. Likely candidates on this machine:
+  ***     data/raw/                        (gitignored; the preprocessing input)
+  ***     the LexGLUE eurlex split via datasets.load_dataset("coastalcph/lex_glue","eurlex")
+  *** Re-run stages 1 and 3 with --source pointed at whichever exists:
+  ***     rm outputs/sentinels/day2_f7.done outputs/sentinels/day2_f1.done
+  """ % len(docs))
+    raise SystemExit(0)
 
 SENT = re.compile(r"(?<=[.;])\s+")
 
