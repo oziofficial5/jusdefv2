@@ -82,7 +82,8 @@ def main():
         tags = args.tags
     else:
         tags = sorted(os.path.basename(p)[len("jusdef_"):-len(".pt")]
-                      for p in glob.glob("outputs/checkpoints/jusdef_v1_corrected*_s*.pt"))
+                      for p in glob.glob("outputs/checkpoints/jusdef_v1_corrected*_s*.pt")
+                      if "smoke" not in os.path.basename(p))
     if not tags:
         print("\nNo v1 checkpoints found under outputs/checkpoints/.")
         print("PART 2 wrote them as jusdef_v1_corrected<SFX>_s<seed>.pt --")
@@ -117,13 +118,26 @@ def main():
         else:
             print("  note: no adjacency in the state dict; if the model consumes"
                   " label_adj at forward time, verify it is the identity here.", flush=True)
+        # --ablate all includes authority_grad, which is equivalent to
+        # --no_authority, so these checkpoints carry no authority_scorer.*
+        # keys. Read the architecture off the state dict rather than assuming.
+        has_auth = any(k.startswith("authority_scorer") for k in sd)
+        has_dmp = any("dmp" in k.lower() for k in sd)
+        print("  state dict: authority_scorer=%s, dmp=%s" % (has_auth, has_dmp), flush=True)
         model = JusDef(in_dim=768, hidden_dim=512, num_layers=2,
-                       use_dmp=True, use_authority=True)
+                       use_dmp=True, use_authority=has_auth)
         try:
             model.load_state_dict(sd)
         except Exception as e:
-            print("  LOAD ERROR: %s" % e, flush=True)
-            continue
+            print("  LOAD ERROR with use_authority=%s: %s" % (has_auth, e), flush=True)
+            try:
+                model = JusDef(in_dim=768, hidden_dim=512, num_layers=2,
+                               use_dmp=True, use_authority=not has_auth)
+                model.load_state_dict(sd)
+                print("  recovered with use_authority=%s" % (not has_auth), flush=True)
+            except Exception as e2:
+                print("  LOAD ERROR (both settings): %s" % e2, flush=True)
+                continue
         model.eval()
 
         vp, vt = logits_for(model, val_g)

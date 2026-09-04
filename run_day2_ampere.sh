@@ -449,6 +449,8 @@ for pat, name in (("outputs/logs/baseline_rgcn_seed*.json",    "R-GCN"),
                   ("outputs/logs/jusdef_v1_corrected*_s*.json", "v1")):
     vals = []
     for f in sorted(glob.glob(pat)):
+        if "smoke" in os.path.basename(f):
+            continue            # smoke runs are not seeds; never average them in
         try:
             v = grab(json.load(open(f)))
         except Exception:
@@ -458,6 +460,9 @@ for pat, name in (("outputs/logs/baseline_rgcn_seed*.json",    "R-GCN"),
     if vals:
         m = sum(vals) / len(vals)
         print("    %-8s %.4f  (n=%d)" % (name, m, len(vals)))
+print("  NB: these are re-read from the logs by a generic key search and are a")
+print("  cross-check only. The thesis figures (R-GCN 0.2731, v2 0.1822,")
+print("  v1 0.1717) are the ones reported by run_thesis_gaps.sh itself.")
 
 p = "outputs/logs/v1_yexc.json"
 if os.path.exists(p):
