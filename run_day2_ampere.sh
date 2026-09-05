@@ -150,44 +150,29 @@ import io, os, sys, math, collections
 sys.path.insert(0, os.getcwd())
 from src.preprocess.operator_detector import detect_operator
 
-PATH = "ledgar_detector_sample.tsv"
-rows = [l.rstrip("\n").split("\t") for l in io.open(PATH, encoding="utf-8")]
-hdr = [h.strip() for h in rows[0]]
-# Resolve by header name: the file gained a keyword_op column when the recovered
-# human annotations were installed, so fixed indices are not safe.
-try:
-    I_DET = hdr.index("detector_op")
-    I_HUM = hdr.index("human_op")
-    I_SENT = hdr.index("sentence")
-except ValueError:
-    print("  *** unexpected header: %s" % hdr)
-    print("  *** expected columns detector_op, human_op, sentence")
-    raise SystemExit(1)
-need = max(I_DET, I_HUM, I_SENT) + 1
-data = [r for r in rows[1:] if len(r) >= need]
-print("loaded %d sentences from %s" % (len(data), PATH))
-print("columns: %s" % hdr)
-
-human = [r[I_HUM].strip().upper() for r in data]
-neural = [r[I_DET].strip().upper() for r in data]
-sents = [r[I_SENT] for r in data]
-keyword = [detect_operator(s) for s in sents]
+PATH = "data/annotations/ledgar_cross_genre/ledgar_160_paired.jsonl"
+import json
+recs = [json.loads(l) for l in io.open(PATH, encoding="utf-8") if l.strip()]
+print("loaded %d sentences from %s" % (len(recs), PATH))
+human   = [r["annotator_label"].strip().upper() for r in recs]
+neural  = [r["detector_label"].strip().upper() for r in recs]
+sents   = [r["text"] for r in recs]
+keyword = [detect_operator(x) for x in sents]
 
 if sents and all(len(x.strip()) <= 4 for x in sents[:10]):
-    print("  *** the sentence column looks like labels, not text -- column")
-    print("  *** resolution failed. Aborting rather than reporting nonsense.")
+    print("  *** text field looks like labels, not sentences. Aborting.")
     raise SystemExit(1)
 
 io.open("outputs/day2/f5_keyword_predictions.tsv", "w", encoding="utf-8").write(
     "idx\tdetector_op\tkeyword_op\thuman_op\tsentence\n" +
-    "".join("%s\t%s\t%s\t%s\t%s\n" % (r[0], n, k, h, s)
-            for r, n, k, h, s in zip(data, neural, keyword, human, sents)))
+    "".join("%s\t%s\t%s\t%s\t%s\n" % (r["id"], nl, kl, hl, tx)
+            for r, nl, kl, hl, tx in zip(recs, neural, keyword, human, sents)))
 print("keyword predictions written to outputs/day2/f5_keyword_predictions.tsv")
 print("keyword distribution : %s" % dict(collections.Counter(keyword)))
 print("neural  distribution : %s" % dict(collections.Counter(neural)))
 
 filled = sum(1 for h in human if h)
-if filled < len(data):
+if filled < len(recs):
     print("\n  *** human_op is filled on only %d of %d rows. ***" % (filled, len(data)))
     print("  The annotations behind kappa = 0.867 are NOT in this checkout.")
     print("  Stage 4 searches the filesystem for them. Once found, drop the file in")
