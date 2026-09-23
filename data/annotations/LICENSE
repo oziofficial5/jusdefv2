@@ -1,0 +1,45 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 Awais Abdul Khaliq
+
+The annotated corpus, the annotation guidelines and the inter-annotator
+agreement files in this directory are licensed under the Creative Commons
+Attribution 4.0 International License.
+
+    https://creativecommons.org/licenses/by/4.0/
+
+You are free to share and adapt this material for any purpose, including
+commercially, provided you give appropriate credit, link to the license, and
+indicate if changes were made.
+
+ATTRIBUTION
+
+    Khaliq, A. A. (2026). Operator-annotated EUR-Lex corpus for defeasible
+    legal text classification. Released with the doctoral thesis "When Does
+    Structure Help? Disentangling Mechanism from Capacity in
+    Defeasibility-Aware Legal Text Classification", University of Milan.
+    https://github.com/oziofficial5/jusdefv2
+
+SCOPE AND PROVENANCE
+
+The operator labels are released as label files keyed to the public dataset
+identifiers of the source corpora. Source text is not redistributed here.
+
+  - EUR-Lex source text is reusable under the European Commission's reuse
+    policy with attribution to the source.
+  - LEDGAR and ECtHR are used under their respective LexGLUE and
+    AUEB-NLP terms and are not redistributed.
+  - CUAD is used under the terms of the Atticus Project release and is not
+    redistributed.
+
+Obtain the underlying corpora from their original providers.
+
+KNOWN LIMITATION
+
+Candidate labels were generated automatically and validated by human
+annotation at Cohen's kappa = 0.77 against an independent annotator (N = 300).
+Reliability against expert legal judgement is bounded by that figure. The
+accompanying neural detector has per-class recall of 0.771 on NEG, with the
+dominant error being NEG misread as OVR. Neither resource should be placed on
+a path where an unreviewed operator label reaches a user or an automated
+decision.
