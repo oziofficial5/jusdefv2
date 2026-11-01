@@ -6,7 +6,7 @@ applicability; NEG denies applicability at rule level; EXC carves a sub-case out
 of an otherwise applicable rule; OVR asserts precedence over another provision.
 
 **This is a silver corpus.** The 3,000 labels were produced by a language model
-and then *measured* against independent human annotation — not corrected by it.
+and then *measured* against independent human annotation, not corrected by it.
 No adjudication pass was run and no consensus label was substituted for a
 disputed one, so every label here is the labeller's own. Use the agreement
 figures below as the reliability bound, not the labels' apparent authority.
@@ -42,8 +42,7 @@ All three recompute from the files in this directory.
 draw; the LEDGAR sample is stratified by detector prediction (40 per class) and
 so over-represents the rare non-AFF classes. Chance-corrected agreement is
 sensitive to class prevalence. No ordering between 0.769 and 0.867 is claimed,
-and none should be inferred. The two passes also used different instruments —
-`operator_guidelines.md` for EUR-Lex, `ledgar_labelling_scheme.md` for LEDGAR.
+and none should be inferred. The two passes also used different instruments, `operator_guidelines.md` for EUR-Lex, `ledgar_labelling_scheme.md` for LEDGAR.
 
 ## Known limitations
 
@@ -51,7 +50,7 @@ and none should be inferred. The two passes also used different instruments —
   enough for a multi-rater coefficient or an estimate of annotator variance.
 - **One lexical trigger dominates the disagreement.** Every sentence containing
   *unless* in the 300-sentence sample was labelled differently by the two
-  annotators — 21 sentences, 40% of all disagreement. Excluding them raises
+  annotators, 21 sentences, 40% of all disagreement. Excluding them raises
   agreement on the remainder to κ = 0.851. The trigger is documented rather than
   removed; downstream users can re-label that subset under their own convention.
 - **No free-text rationale.** The labelling prompt returns a label and a
@@ -59,7 +58,7 @@ and none should be inferred. The two passes also used different instruments —
   explanations. Audit is possible at the level of *which* labels departed from
   the keyword candidate and how confidently they were assigned, not *why* any
   individual label was chosen.
-- **Confidence is binary**, `high` or `low` — 2,598 high (86.6%) and 402 low
+- **Confidence is binary**, `high` or `low`, 2,598 high (86.6%) and 402 low
   (13.4%). There is no medium grade.
 - **`keyword_candidate` is an input, not a prediction.** It carries the class
   proposed by the rule-based detector used for the stratified sampling, passed
@@ -79,7 +78,7 @@ and none should be inferred. The two passes also used different instruments —
   labels. She was not involved in designing the operator scheme, in the
   AI-assisted labelling, or in the analysis.
 - **Y_exc subset**: A. A. Khaliq, 12 April 2026, by inspection of EuroVoc label
-  semantics — a judgement about how a topic area is drafted, not about the
+  semantics, a judgement about how a topic area is drafted, not about the
   corpus, so it was not fitted to any evaluation split. Single annotator, no
   agreement figure: treat it as a protocol proposal rather than a validated
   instrument.
@@ -90,7 +89,7 @@ The sentences derive from EUR-Lex, reusable under the European Commission's
 reuse decision with source acknowledgement. LEDGAR text is governed by the
 LexGLUE terms; the cross-genre file is distributed as labels keyed to sentence
 text drawn from that public dataset. ECtHR-derived material is deliberately
-**not** released in any sentence-level form — those judgments carry the personal
+**not** released in any sentence-level form, those judgments carry the personal
 data of identifiable litigants, and the aggregate density figures reported in
 the accompanying work serve every research purpose a sentence-level derivative
 would.

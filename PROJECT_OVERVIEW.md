@@ -5,25 +5,25 @@
 **Repository**: github.com/oziofficial5/jusdefv2
 **Last updated**: 22 August 2026
 
-This document is the entry point for a reader who wants the project's story in ten minutes. It is kept aligned with the thesis; where the thesis reports a result with a caveat, that caveat is reproduced here.
+This document summarises the project's claims, resources and results, and is kept aligned with the thesis. Where the thesis reports a result with a caveat, the caveat is reproduced here.
 
 ---
 
-## TL;DR
+## Summary
 
-We built a defeasibility-aware graph neural network for legal text classification, with explicit operators for affirmation, negation, exception and override. We expected it to beat a standard relational baseline on legal text where defeasibility matters. It did not.
+The project develops a defeasibility-aware graph neural network for legal text classification, with explicit operators for affirmation, negation, exception and override. On the three corpora tested it does not beat a standard relational baseline, including on legal text where defeasibility is expected to matter.
 
-Rather than tune until the number improved, we built the measurement apparatus needed to find out why, and then to ask a harder question: when a structural prior does appear to help, is the structure doing the work, or is it just extra parameters?
+The diagnostic work that followed addresses a more general question: when a structural prior does appear to help, is the structure being used, or are the extra parameters doing the work?
 
-The answer for legal defeasibility is mostly the latter. A three-arm permutation control attributes roughly **three-quarters** of our best result to added model capacity rather than to operator meaning. The remaining effect is real but small, and does not clear conventional significance. Fine-tuning the encoder removes the benefit entirely.
+For legal defeasibility it is mostly the parameters. A three-arm permutation control attributes roughly three-quarters of the best result to added model capacity rather than to operator meaning. The remaining effect is real but small and does not clear conventional significance. Fine-tuning the encoder removes the benefit entirely.
 
-**The durable contribution is the permutation control, not the architecture.** It is not specific to law or to JusDef, it applies to any claimed structural prior over typed-edge graphs, and it has been validated across eighteen node- and entity-classification benchmarks where it correctly separates signals that are genuinely used from those that are not.
+**The durable contribution is the permutation control rather than the architecture.** It is not specific to law or to JusDef, applies to any claimed structural prior over typed-edge graphs, and has been validated across eighteen node- and entity-classification benchmarks, where it separates signals that are genuinely used from those that are not.
 
 ---
 
 ## The claim, stated precisely
 
-Defeasibility-aware aggregation of the JusDef-SP class functions as a **substitute for encoder adaptation**. It is useful in frozen-backbone, low-resource and efficiency-constrained settings, and is subsumed once the encoder can be fine-tuned. On LEDGAR contract clauses a narrow operating regime is located at 10–20% non-AFF operator density, but the density measure is arithmetically confounded with paragraph length, so **the regime is a located boundary rather than an explained one**, and which of the two accounts holds is left open.
+Defeasibility-aware aggregation of the JusDef-SP class functions as a substitute for encoder adaptation. It is useful in frozen-backbone, low-resource and efficiency-constrained settings, and is subsumed once the encoder can be fine-tuned. On LEDGAR contract clauses a narrow operating regime is located at 10–20% non-AFF operator density, but the density measure is arithmetically confounded with paragraph length, so the regime is a located boundary rather than an explained one, and which of the two accounts holds is left open.
 
 The methodology required to establish that, the permutation control and the stratified protocols, together with the density measurement, the annotated corpus and the detector, are contributions independent of any verdict on the architecture.
 
@@ -33,7 +33,7 @@ The methodology required to establish that, the permutation control and the stra
 
 | # | Contribution | Type | Thesis chapter |
 |---|---|---|---|
-| **C1** | **Diagnostic and permutation-control methodology, separating genuine structural mechanism from generic added capacity. Validated as a general diagnostic across eighteen benchmarks. Primary contribution.** | Methodological | 6, 7 |
+| **C1** | Diagnostic and permutation-control methodology, separating genuine structural mechanism from generic added capacity. Validated as a general diagnostic across eighteen benchmarks. Primary contribution. | Methodological | 6, 7 |
 | C2 | `Y_exc` and density-stratified evaluation protocols | Methodological | 3, 7 |
 | C3 | Cross-corpus measurement of *explicitly marked* operator density | Methodological / empirical | 3 |
 | C4 | 3,000-sentence operator-annotated corpus, peer-validated at κ = 0.77 | Resource | 3 |
@@ -56,7 +56,7 @@ Any two of the three pillars (a method, resources, a characterisation) are inten
 
 **Provenance.** Candidate labels were produced with Claude Opus 5 (Anthropic) in June 2026 under a fixed annotation guideline, then validated by human annotation. This is disclosed in the thesis (Chapter 3) and recorded here because the corpus is released for reuse.
 
-**Validation.** A 100-sentence self-review at Cohen's κ = 0.79, and a 300-sentence blind annotation by an independent peer annotator at **κ = 0.77** (substantial agreement under Landis–Koch). The self-review measures the labelling function's consistency with itself and is therefore an **upper bound**, not independent evidence. The peer figure is the one that carries weight and the one that bounds the detector.
+**Validation.** A 100-sentence self-review at Cohen's κ = 0.79, and a 300-sentence blind annotation by an independent peer annotator at κ = 0.77 (substantial agreement under Landis–Koch). The self-review measures the labelling function's consistency with itself and is therefore an upper bound, not independent evidence. The peer figure is the one that carries weight and the one that bounds the detector.
 
 **Known residual ambiguity.** The majority of peer-annotator disagreements concentrate in a single linguistic pattern, "Unless X, Y" constructions, documented as a limitation of the outermost-wins decision rule.
 
@@ -66,7 +66,7 @@ Released under `data/annotations/`, with the annotation guidelines and both IAA 
 
 A fine-tuned LegalBERT classifier, applied to three corpora with no per-corpus retraining.
 
-Validation macro-F1 is 0.977, but the validation set also served as the early-stopping and model-selection set, so **this is a selected maximum rather than a clean held-out estimate**. What the detector reproduces is the AI labelling function; that function agrees with expert annotation at κ = 0.77, so end-to-end reliability against expert judgement is bounded by 0.77, not 0.977.
+Validation macro-F1 is 0.977, but the validation set also served as the early-stopping and model-selection set, so this is a selected maximum rather than a clean held-out estimate. What the detector reproduces is the AI labelling function; that function agrees with expert annotation at κ = 0.77, so end-to-end reliability against expert judgement is bounded by 0.77, not 0.977.
 
 ### 3. Cross-corpus operator density (C3)
 
@@ -74,13 +74,13 @@ The first systematic, validated, cross-corpus measurement of *explicitly marked*
 
 | Corpus | Non-AFF density |
 |---|---|
-| EUR-Lex, EU regulations (LexGLUE) | **0.71%** |
-| ECtHR case-law facts (AUEB-NLP) | **0.52%** |
-| LEDGAR, US contract clauses (LexGLUE) | **20.03%** |
+| EUR-Lex, EU regulations (LexGLUE) | 0.71% |
+| ECtHR case-law facts (AUEB-NLP) | 0.52% |
+| LEDGAR, US contract clauses (LexGLUE) | 20.03% |
 
 The qualifier "explicitly marked" is load-bearing. The measurement counts sentences whose surface form carries a lexical defeat marker. It says nothing about defeasibility operating structurally through *lex specialis* or *lex posterior* without a marker.
 
-The gap between regulations and contract clauses is **28×, more than an order of magnitude**, driven primarily by EXC markers. ECtHR's 0.52% is the corpus figure; the rationale subset is 0.58%.
+The gap between regulations and contract clauses is 28×, more than an order of magnitude, driven primarily by EXC markers. ECtHR's 0.52% is the corpus figure; the rationale subset is 0.58%.
 
 **Unit caveat.** EUR-Lex density is measured per mention-edge; LEDGAR and ECtHR are measured per sentence. The measurements are therefore not perfectly like-for-like, and the thesis states this in Chapter 3.
 
@@ -88,14 +88,14 @@ This result explains the project's first-half failure: the architecture was bein
 
 ### 4. JusDef-SP, a signal-preserving architecture (C6, C7)
 
-The corrected v2 architecture underperforms an R-GCN baseline by **nine macro-F1 points** on EUR-Lex. Five candidate explanations were formulated and tested by single-variable intervention:
+The corrected v2 architecture underperforms an R-GCN baseline by nine macro-F1 points on EUR-Lex. Five candidate explanations were formulated and tested by single-variable intervention:
 
 | Hypothesis | Intervention | Verdict |
 |---|---|---|
 | H1 Threshold protocol bug | validation-frozen threshold | gap persists, falsified |
 | H2 Capacity bottleneck | R-GCN at double width | wider is worse, falsified |
 | H3 Stage-2 curriculum failure | extended patience, log inspection | curriculum fires, F1 flat, falsified |
-| H4 Operator-density bottleneck | neural detector swap | F1 unchanged, **set aside, not refuted** |
+| H4 Operator-density bottleneck | neural detector swap | F1 unchanged, set aside, not refuted |
 | H5 Auxiliary losses harmful | disable both | F1 unchanged, falsified |
 
 H4 was set aside rather than falsified because every density obtainable on EUR-Lex lies below the range in which it predicts an effect. The variable returns on LEDGAR as the axis along which the operating regime is found.
@@ -106,9 +106,9 @@ JusDef-SP (`src/model/v3_layer.py`) responds to the resulting diagnosis with thr
 - operator-conditioned soft attention, for straight-through-estimator bias (Liu et al., ICML 2022);
 - per-operator signed coefficients with an L2 drift regulariser, for sign cancellation (Zhu et al., 2024).
 
-Three reduction results establish that with coefficients `c = (1,1,1,1)` and uniform attention JusDef-SP reduces **exactly** to R-GCN, that it recovers hard DMP as attention sharpens to one-hot, and that its hypothesis class strictly contains hard DMP's. A baseline-matching configuration therefore sits inside the hypothesis class and training does not reach it, which locates the problem in optimisation rather than expressivity.
+Three reduction results establish that with coefficients `c = (1,1,1,1)` and uniform attention JusDef-SP reduces exactly to R-GCN, that it recovers hard DMP as attention sharpens to one-hot, and that its hypothesis class strictly contains hard DMP's. A baseline-matching configuration therefore sits inside the hypothesis class and training does not reach it, which locates the problem in optimisation rather than expressivity.
 
-**JusDef-SP did not close the gap on EUR-Lex.**
+JusDef-SP did not close the gap on EUR-Lex.
 
 ### 5. The operating regime (C8)
 
@@ -117,12 +117,12 @@ On LEDGAR, JusDef-SP underperforms a mean-aggregation baseline on the full test 
 | Density bin | N | Mean baseline | JusDef-SP | Δ |
 |---|---|---|---|---|
 | All paragraphs | 10,000 | 0.7085 | 0.6881 | −0.0204 |
-| **10–20% non-AFF** | **156** | 0.6193 | 0.6722 | **+0.0624** |
+| 10–20% non-AFF | 156 | 0.6193 | 0.6722 | +0.0624 |
 | ≥20% non-AFF | 3,353 | 0.7066 | 0.6871 | −0.0194 |
 
-The regime delta is **+0.0624 on five seeds** (sample SD 0.0280, standard error 0.0125, all five seeds positive) and **+0.0753 on ten seeds**. Quote the seed panel whenever quoting the number. No architectural benefit is detectable at any other density, or on either low-density corpus.
+The regime delta is +0.0624 on five seeds (sample SD 0.0280, standard error 0.0125, all five seeds positive) and +0.0753 on ten seeds. Quote the seed panel whenever quoting the number. No architectural benefit is detectable at any other density, or on either low-density corpus.
 
-**This is a located boundary, not an explanation of one.** See the confound below.
+This is a located boundary, not an explanation of one. See the confound below.
 
 ### 6. The permutation control (C1, C10)
 
@@ -130,16 +130,16 @@ The core methodological contribution. A gain over a baseline can come from the s
 
 | Arm | Operator information supplied | Regime gain, ten seeds |
 |---|---|---|
-| **True** | real operator labels | **+0.0753** |
-| **Shuffled** | labels randomly permuted | **+0.0376** |
-| **Zeroed** | all set to AFF, no information at all | **+0.0548** |
+| True | real operator labels | +0.0753 |
+| Shuffled | labels randomly permuted | +0.0376 |
+| Zeroed | all set to AFF, no information at all | +0.0548 |
 
-With **no operator information whatsoever**, the architecture recovers +0.0548 of the +0.0753 gain. **Roughly three-quarters of the headline result is added capacity, not defeasibility.**
+With no operator information whatsoever, the architecture recovers +0.0548 of the +0.0753 gain. Roughly three-quarters of the headline result is added capacity, not defeasibility.
 
 Decomposing the remainder:
 
-- real operators beat **randomised** ones by **+0.038**, `p ≈ 0.02` (significant);
-- real operators beat **no** operators by only **+0.021**, `p ≈ 0.08` (marginally non-significant).
+- real operators beat randomised ones by +0.038, `p ≈ 0.02` (significant);
+- real operators beat no operators by only +0.021, `p ≈ 0.08` (marginally non-significant).
 
 Operator identity carries some signal, but the total contribution of genuine operator information does not clear conventional significance.
 
@@ -155,12 +155,12 @@ Per-paragraph density is `d_p = k / n`, with `k` non-AFF sentences and `n` sente
 |---|---|---|
 | 0–5% | n > 20k | 21 |
 | 5–10% | 10k < n ≤ 20k | 11 |
-| **10–20%** | **5k < n ≤ 10k** | **6** |
+| 10–20% | 5k < n ≤ 10k | 6 |
 | 20–30% | 10k/3 < n ≤ 5k | 4 |
 | 30–50% | 2k < n ≤ 10k/3 | 3 |
 | ≥50% | n ≤ 2k | 1 |
 
-Entering the 10–20% band requires **at least six sentences**. LEDGAR's median paragraph is **two**, and 44.2% are single-sentence, so only **523 of 10,000** paragraphs are eligible on length alone. The 156 that populate the band average **7.74 sentences against 1.96** for the rest.
+Entering the 10–20% band requires at least six sentences. LEDGAR's median paragraph is two, and 44.2% are single-sentence, so only 523 of 10,000 paragraphs are eligible on length alone. The 156 that populate the band average 7.74 sentences against 1.96 for the rest.
 
 Three consequences, all stated in the thesis:
 
@@ -176,7 +176,7 @@ Implementation: `scripts/analyse_ledgar_length_confound.py`.
 
 `src/model/v4_router.py`. Routes each paragraph to either the JusDef-SP update or the mean baseline according to measured density, trained in two stages to resolve the distribution shift of end-to-end routed training.
 
-JusDef-RR improves on JusDef-SP both in aggregate and on the regime, and **draws level** with the mean baseline in aggregate. Two LEDGAR mean baselines are in circulation, 0.7085 (three seeds) and 0.6955 (five seeds); JusDef-RR at 0.7023 sits above one and below the other, so the aggregate comparison is a **statistical tie and is never reported as a win**.
+JusDef-RR improves on JusDef-SP both in aggregate and on the regime, and draws level with the mean baseline in aggregate. Two LEDGAR mean baselines are in circulation, 0.7085 (three seeds) and 0.6955 (five seeds); JusDef-RR at 0.7023 sits above one and below the other, so the aggregate comparison is a statistical tie and is never reported as a win.
 
 The negative result travels with it: single-stage end-to-end training of the same architecture fails on the regime. Routing mechanism and training protocol must be designed together.
 
@@ -186,16 +186,16 @@ The routing criterion inherits the confound. It selects on density, density is c
 
 **Fine-tuning removes the benefit.** Once LegalBERT is allowed to adapt, there is no aggregate gain and only a small non-significant regime gain.
 
-**A bag-of-words baseline matches a fine-tuned transformer.** TF-IDF with a linear SVM reaches **0.828**; a properly tuned LegalBERT reaches **0.829** (ten seeds). This bounds how much any architectural comparison on this task can establish.
+A bag-of-words baseline matches a fine-tuned transformer. TF-IDF with a linear SVM reaches 0.828; a properly tuned LegalBERT reaches 0.829 (ten seeds). This bounds how much any architectural comparison on this task can establish.
 
 ---
 
 ## What this project does not claim
 
 - **No claim of state-of-the-art accuracy.** Graph-only architectures, R-GCN included, underperform transformer baselines by roughly 25–30 macro-F1 points on EUR-Lex. That is a property of the architectural class.
-- **No claim that defeasibility-aware GNNs help in general.** They do not, on any of the three corpora tested, outside one narrow band on one corpus.
-- **No claim that the operating regime is explained.** It is located. Whether it reflects defeasibility or paragraph length is unresolved, and the thesis says so.
-- **No claim that the regime gain is mostly mechanism.** Roughly three-quarters is added capacity by our own control.
+- No claim that defeasibility-aware GNNs help in general. They do not, on any of the three corpora tested, outside one narrow band on one corpus.
+- No claim that the operating regime is explained. It is located. Whether it reflects defeasibility or paragraph length is unresolved, and the thesis says so.
+- No claim that the regime gain is mostly mechanism. Roughly three-quarters is added capacity by our own control.
 - **No claim of component-level architectural novelty.** Each JusDef-SP component has prior art in adjacent communities. The contribution is the synthesis targeted at three diagnosed failure modes.
 - **No claim about unmarked defeasibility.** All density figures concern *explicitly marked* operators only.
 
@@ -203,13 +203,13 @@ The routing criterion inherits the confound. It selects on density, density is c
 
 ## Practical takeaways
 
-1. **Measure operator density before committing to an architecture.** The released detector runs off-the-shelf on any English legal corpus. Below roughly 10% density, defeasibility-aware GNNs of this class are unlikely to help, and a simpler baseline is more parameter-efficient.
+1. Measure operator density before committing to an architecture. The released detector runs off-the-shelf on any English legal corpus. Below roughly 10% density, defeasibility-aware GNNs of this class are unlikely to help, and a simpler baseline is more parameter-efficient.
 
-2. **Run the permutation control on any structural prior before believing it.** Shuffling and then zeroing the structure costs two extra training runs and tells you whether you have a mechanism or just parameters. On this project it changed the conclusion.
+2. Run the permutation control on any structural prior before believing it. Shuffling and then zeroing the structure costs two extra training runs and tells you whether you have a mechanism or just parameters. On this project it changed the conclusion.
 
-3. **Report stratified metrics alongside aggregates**, and check whether your stratification variable is confounded with something simpler. Ours was.
+3. Report stratified metrics alongside aggregates, and check whether your stratification variable is confounded with something simpler. Ours was.
 
-4. **For absolute accuracy on legal multi-label tasks, fine-tune a transformer.** This project's contribution is to architectural characterisation, not to the accuracy leaderboard.
+4. For absolute accuracy on legal multi-label tasks, fine-tune a transformer. This project's contribution is to architectural characterisation, not to the accuracy leaderboard.
 
 ---
 
@@ -249,7 +249,7 @@ jusdefv2/
     └── test_ledgar_pipeline.py
 ```
 
-**Naming.** `v3` and `v4` are code identifiers only. In the thesis and in writing they are **JusDef-SP** (signal-preserving) and **JusDef-RR** (regime-routed).
+**Naming.** `v3` and `v4` are code identifiers only. In the thesis and in writing they are JusDef-SP (signal-preserving) and JusDef-RR (regime-routed).
 
 **Branches.** `thesis-main` is the default branch and now contains the complete LEDGAR line of work. `jusdef-ledgar` is at the same commit. `jusdef-v3` is a historical branch retained for provenance.
 
@@ -291,7 +291,7 @@ See `AMPERE_RUNBOOK.md` for the detailed runbook. Per-seed JSON result files und
 
 **On paper 3.** The ANNPR workshop paper reports a positive result for the hard-defeat architecture over a frozen encoder. That evaluation tuned its decision threshold on test labels. Corrected, the result does not survive, and the thesis reports the correction in full.
 
-**On paper 4.** Submitted before the paragraph-length confound was identified, so it states the operating regime without the identification caveat recorded above. **The thesis is the current statement**, and the caveat will be added at revision.
+**On paper 4.** Submitted before the paragraph-length confound was identified, so it states the operating regime without the identification caveat recorded above. The thesis is the current statement, and the caveat will be added at revision.
 
 ---
 

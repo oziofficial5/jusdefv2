@@ -1,4 +1,4 @@
-# Ampere Runbook — JusDef v2
+# Ampere Runbook: JusDef v2
 
 **Target compute**: 2 weeks on Milan A100 Ampere.
 **Goal**: full reproducible pipeline from raw EUR-Lex → final results, with no resubmission needed.
@@ -46,7 +46,7 @@ sbatch run_all_ampere.slurm
 squeue -u $USER                   # check it's queued/running
 ```
 
-The slurm script executes `scripts/run_all_ampere.sh` which runs the 9 stages below. Each stage writes a sentinel to `outputs/sentinels/<n>.done`. If a stage already has its sentinel, it is skipped — so you can re-`sbatch` safely after fixing any single stage.
+The slurm script executes `scripts/run_all_ampere.sh` which runs the 9 stages below. Each stage writes a sentinel to `outputs/sentinels/<n>.done`. If a stage already has its sentinel, it is skipped, so you can re-`sbatch` safely after fixing any single stage.
 
 ---
 
@@ -71,7 +71,7 @@ The master script `scripts/run_all_ampere.sh` runs:
 
 **Total estimate with all stages**: ~10–13 days. **Inside your 16-day Ampere budget with 3–6 day buffer.**
 
-### Stage 7.5 — what the neural detector experiment actually measures
+### Stage 7.5: what the neural detector experiment actually measures
 
 This is the **decisive experiment** for Chapter 1's central claim. It compares:
 
@@ -142,8 +142,8 @@ Stop the job if you see:
 | After Stage | Required files | Verification command |
 |---|---|---|
 | 1 | `data/processed/{train,validation,test}_processed.pkl` | `python -c "import pickle; d=pickle.load(open('data/processed/test_processed.pkl','rb')); print(len(d), 'docs;', sum(1 for x in d for s in x['sections'] for c in s['concepts']), 'concepts')"` |
-| 2 | `data/processed/embeddings/{train,validation,test}_{doc,section}_embs.pt` and `label_embs.pt` | `python -c "import torch; e=torch.load('data/processed/embeddings/test_doc_embs.pt'); print(e.shape)"` — expect `[N_test, 768]` |
-| 3 | `data/processed/label_adj.pt` | `python -c "import torch; a=torch.load('data/processed/label_adj.pt'); print(a.shape, (a!=0).sum().item())"` — expect `[100,100]`, ~700 nonzeros |
+| 2 | `data/processed/embeddings/{train,validation,test}_{doc,section}_embs.pt` and `label_embs.pt` | `python -c "import torch; e=torch.load('data/processed/embeddings/test_doc_embs.pt'); print(e.shape)"`, expect `[N_test, 768]` |
+| 3 | `data/processed/label_adj.pt` | `python -c "import torch; a=torch.load('data/processed/label_adj.pt'); print(a.shape, (a!=0).sum().item())"`, expect `[100,100]`, ~700 nonzeros |
 | 4 | `data/processed/graphs/{train,validation,test}_graphs.pt` | `python -c "import torch; gs=torch.load('data/processed/graphs/test_graphs.pt'); print(len(gs), 'graphs;', gs[0].edge_types)"` |
 | 6 | `outputs/checkpoints/best_rgcn_seed{42,43,44}.pt` + `outputs/logs/baseline_rgcn_seed{42,43,44}.json` | `cat outputs/logs/baseline_rgcn_seed42.json` |
 | 7 | `outputs/checkpoints/jusdef_full_s{42,43,44}.pt` + matching JSONs | `cat outputs/logs/jusdef_full_s42.json` |
@@ -225,10 +225,10 @@ The pre-Ampere commit `3d74ed0` includes these critical contract fixes:
 
 1. **Threshold tuned on val, frozen for test** (trainer.py, train_rgcn.py, eval_all_jusdef.py). You should NOT see `test_threshold` re-optimised per split in any results JSON.
 2. **`data/processed/label_adj.pt` is tracked in git** (40 KB). Stage 3 regenerates it, but if the cluster's RDF source is missing, training will fail loudly rather than silently using identity.
-3. **Section embedding fallback writes a WARN to stderr** in `kg_builder.py`. Watch for `[kg_builder] WARN` in Stage 4 logs — any count > 0 means some graphs have degenerate section representations.
+3. **Section embedding fallback writes a WARN to stderr** in `kg_builder.py`. Watch for `[kg_builder] WARN` in Stage 4 logs, any count > 0 means some graphs have degenerate section representations.
 4. **All architecture-fix tests pass on laptop**. Stage 5 runs them on the cluster as a gate before training; if any fail, fix on the cluster before continuing.
 
-If a result JSON has `val_threshold` field present (added by the new evaluate signature), the test result used the val-tuned threshold. If it's missing, the JSON was produced by an older script and the number is suspect — rerun.
+If a result JSON has `val_threshold` field present (added by the new evaluate signature), the test result used the val-tuned threshold. If it's missing, the JSON was produced by an older script and the number is suspect, rerun.
 
 ---
 

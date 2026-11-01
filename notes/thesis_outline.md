@@ -5,13 +5,13 @@
 **Author**: Awais Abdul Khaliq
 **Supervisors**: Prof. Stefano Montanelli, Prof. Alfio Ferrara
 **Target submission**: 15 September 2026
-**Outline status**: final — incorporating 14 June 2026 ECtHR density measurement
+**Outline status**: final, incorporating 14 June 2026 ECtHR density measurement
 
 ---
 
 ## Thesis statement (one sentence)
 
-*The empirical benefit of defeasibility-aware graph neural networks on legal multi-label classification is bounded by three architectural failure modes documented in the broader graph-learning literature (Straight-Through Estimator bias on hard gates, sign cancellation across depth in signed graph neural networks, and pretrained-encoder negation blindness) interacting with a previously-uncharacterised property of natural legal corpora: explicit defeasible-operator density is intrinsically low (< 1% non-AFF) on both EU regulations (EUR-Lex) and European human-rights case law (ECtHR); we contribute a diagnostic methodology grounded in named prior failures, an operator-annotated corpus with expert inter-annotator validation (Cohen's κ = 0.77), the first two-corpus measurement of explicit operator density in legal NLP, the Y\_exc defeasibility-stratified evaluation protocol, and a signal-preserving architecture that recovers R-GCN performance as a limit case while preserving defeasible semantics.*
+*The empirical benefit of defeasibility-aware graph neural networks on legal multi-label classification is bounded by three architectural failure modes documented in the broader graph-learning literature (Straight-Through Estimator bias on hard gates, sign cancellation across depth in signed graph neural networks, and pretrained-encoder negation blindness) interacting with a previously-uncharacterised property of natural legal corpora: explicit defeasible-operator density is intrinsically low (< 1% non-AFF) on both EU regulations (EUR-Lex) and European human-rights case law (ECtHR); we contribute a diagnostic methodology grounded in named prior failures, an operator-annotated corpus with expert inter-annotator validation (Cohen's κ = 0.77), the first two-corpus measurement of explicit operator density in legal NLP, the Y_exc defeasibility-stratified evaluation protocol, and a signal-preserving architecture that recovers R-GCN performance as a limit case while preserving defeasible semantics.*
 
 ---
 
@@ -20,8 +20,8 @@
 | # | Contribution | Type | Primary chapter |
 |---|---|---|---|
 | **C1** | Diagnostic methodology for attributing failure in defeasibility-aware GNNs (hypothesis-falsification chain on capacity, threshold, density) | Methodological | Ch. 6 |
-| **C2** | Y\_exc defeasibility-stratified evaluation protocol (no published precedent for multi-label legal classification) | Methodological | Ch. 3, Ch. 8 |
-| **C3** | **Two-corpus explicit operator density measurement** (EUR-Lex 0.71%, ECtHR 0.52-0.58%) — first systematic characterisation in legal NLP | Empirical | Ch. 6 |
+| **C2** | Y_exc defeasibility-stratified evaluation protocol (no published precedent for multi-label legal classification) | Methodological | Ch. 3, Ch. 8 |
+| **C3** | **Two-corpus explicit operator density measurement** (EUR-Lex 0.71%, ECtHR 0.52-0.58%), first systematic characterisation in legal NLP | Empirical | Ch. 6 |
 | **C4** | 3000-sentence operator-annotated corpus with expert IAA (Cohen's κ = 0.77 independent annotator) | Resource | Ch. 5 |
 | **C5** | Neural operator detector with documented density calibration (5.99% keyword → 0.71% neural on EUR-Lex; 0.58% on ECtHR) | Resource | Ch. 5 |
 | **C6** | v3 architecture (signal-preserving, signed-coefficient + soft attention) grounded in three NAMED prior failure modes | Architectural | Ch. 7 |
@@ -37,13 +37,13 @@ Three pieces of evidence drove the final framing:
 
 1. The June 2026 literature review showed there is **no clean architectural novelty** at the GNN+defeasible+legal intersection. Every individual component of any v3 architecture has prior art in adjacent communities (FAGCN/Signed-GCN for signed aggregation, CompGCN for subtractive composition, HGT/HAN for typed attention, Cocarascu and Galassi for argumentation GNNs).
 
-2. The 14 June 2026 density measurement on AUEB-NLP/ecthr_cases produced 0.52% (all paragraphs) and 0.58% (rationale paragraphs) non-AFF density — *below* EUR-Lex's 0.71%. The hypothesis "case law is denser in defeasibility markers than regulations" is **falsified** by this dataset. Two corpus measurements now both show < 1% explicit operator density.
+2. The 14 June 2026 density measurement on AUEB-NLP/ecthr_cases produced 0.52% (all paragraphs) and 0.58% (rationale paragraphs) non-AFF density, *below* EUR-Lex's 0.71%. The hypothesis "case law is denser in defeasibility markers than regulations" is **falsified** by this dataset. Two corpus measurements now both show < 1% explicit operator density.
 
 3. The Stage 7.5 multi-seed JusDef-neural result (0.18 ± 0.01 across 3 seeds) confirmed that operator-density alone does not change downstream performance. Combined with R-GCN's robust 0.273 baseline, the architectural gap is not a density artefact.
 
-The defensible thesis is therefore methodology + dataset + targeted architectural fix grounded in cited prior failures, with empirical claims on Y\_exc rather than overall macro-F1. The two-corpus density measurement is now a primary contribution (C3) because it generalises beyond one dataset.
+The defensible thesis is therefore methodology + dataset + targeted architectural fix grounded in cited prior failures, with empirical claims on Y_exc rather than overall macro-F1. The two-corpus density measurement is now a primary contribution (C3) because it generalises beyond one dataset.
 
-EUR-Lex transformer baselines (Chalkidis et al. ACL 2022) hit macro-F1 ≈ 0.57 with LegalBERT. Graph-only baselines including R-GCN hit ~0.27. **The thesis does not claim macro-F1 SOTA** — that is not what graph-only models do on this benchmark.
+EUR-Lex transformer baselines (Chalkidis et al. ACL 2022) hit macro-F1 ≈ 0.57 with LegalBERT. Graph-only baselines including R-GCN hit ~0.27. **The thesis does not claim macro-F1 SOTA**, that is not what graph-only models do on this benchmark.
 
 ---
 
@@ -61,12 +61,12 @@ EUR-Lex transformer baselines (Chalkidis et al. ACL 2022) hit macro-F1 ≈ 0.57 
 
 ## Chapter-by-chapter structure
 
-### Chapter 1 — Introduction (~10 pages)
+### Chapter 1: Introduction (~10 pages)
 
 - 1.1 Motivation: legal text encodes non-monotonic norms
 - 1.2 The problem: defeasibility-aware GNNs lack benchmarks, datasets, validated architectures, and corpus-density characterisation
-- 1.3 Thesis statement and research questions (RQ1–RQ4)
-- 1.4 Contributions (C1–C7)
+- 1.3 Thesis statement and research questions (RQ1. RQ4)
+- 1.4 Contributions (C1. C7)
 - 1.5 Publications arising from the thesis
 - 1.6 Thesis structure
 - 1.7 Reading guide
@@ -75,7 +75,7 @@ EUR-Lex transformer baselines (Chalkidis et al. ACL 2022) hit macro-F1 ≈ 0.57 
 
 ---
 
-### Chapter 2 — Background and Related Work (~20 pages)
+### Chapter 2: Background and Related Work (~20 pages)
 
 Sections 2.1 through 2.11 as listed in the previous outline draft. **No changes from previous version.** Key citation clusters preserved:
 
@@ -88,27 +88,27 @@ Sections 2.1 through 2.11 as listed in the previous outline draft. **No changes 
 - 2.7 Hard masking vs soft attention (Gapped STE ICML 2022)
 - 2.8 Negation in pretrained encoders (Semantic Adapter 2025, ScoNe)
 - 2.9 Argumentation GNNs (Cocarascu, Galassi, Lippi, Multi-view HGNN 2024)
-- 2.10 Long-tail multi-label evaluation (methodological analog for Y\_exc)
+- 2.10 Long-tail multi-label evaluation (methodological analog for Y_exc)
 - 2.11 Synthesis: the precise gap at the GNN + defeasibility + legal intersection
 
 ---
 
-### Chapter 3 — Problem Formulation (~15 pages)
+### Chapter 3: Problem Formulation (~15 pages)
 
 This chapter is partially drafted at `chapter3_problem_formulation.tex` and will be updated.
 
 - 3.1 Task definition: multi-label legal classification on EUR-Lex
 - 3.2 Operator algebra Ω = {AFF, NEG, EXC, OVR}
 - 3.3 The heterogeneous legal graph G
-- 3.4 Defeasible message passing — abstract definition (used by v1, v2, v3)
+- 3.4 Defeasible message passing, abstract definition (used by v1, v2, v3)
 - 3.5 The R-GCN baseline and Proposition 1 (reduction)
-- 3.6 **Y\_exc — the defeasibility-stratified evaluation subset** (C2)
+- 3.6 **Y_exc, the defeasibility-stratified evaluation subset** (C2)
 - 3.7 Evaluation metrics and multi-seed protocol
 - 3.8 The four formal research questions
 
 ---
 
-### Chapter 4 — The JusDef Framework: v1 + v2 corrections (~15 pages)
+### Chapter 4: The JusDef Framework: v1 + v2 corrections (~15 pages)
 
 - 4.1 JusDef v1 architecture (ANNPR contribution)
 - 4.2 The authority scorer
@@ -120,7 +120,7 @@ This chapter is partially drafted at `chapter3_problem_formulation.tex` and will
 
 ---
 
-### Chapter 5 — An Operator-Annotated Corpus for Legal Defeasibility (~15 pages)
+### Chapter 5: An Operator-Annotated Corpus for Legal Defeasibility (~15 pages)
 
 This is C4 + C5 (primary resource contributions).
 
@@ -140,7 +140,7 @@ This is C4 + C5 (primary resource contributions).
 
 ---
 
-### Chapter 6 — Diagnostic Methodology and Two-Corpus Density Findings (~22 pages)
+### Chapter 6: Diagnostic Methodology and Two-Corpus Density Findings (~22 pages)
 
 This is C1 (primary methodological contribution) and C3 (the two-corpus density measurement).
 
@@ -152,7 +152,7 @@ This is C1 (primary methodological contribution) and C3 (the two-corpus density 
 - 6.6 **Hypothesis H4**: Operator-density bottleneck
   - 6.6.1 Trained neural detector measures EUR-Lex density at 0.71% (vs keyword's 5.99%)
   - 6.6.2 Multi-seed JusDef-neural test_macro = 0.18 ± 0.01 (identical to keyword)
-  - 6.6.3 **Falsified for EUR-Lex** — density change does not change performance
+  - 6.6.3 **Falsified for EUR-Lex**, density change does not change performance
 - 6.7 **The two-corpus density measurement (C3, new addition)**
   - 6.7.1 Motivation: does the density-invariance generalise across legal corpora?
   - 6.7.2 ECtHR cases dataset (AUEB-NLP, 1000 test cases)
@@ -161,15 +161,15 @@ This is C1 (primary methodological contribution) and C3 (the two-corpus density 
   - 6.7.5 ECtHR rationale paragraphs (silver_rationales): 0.58% non-AFF
   - 6.7.6 **Finding: both corpora show < 1% non-AFF density**. The density-floor is corpus-intrinsic.
   - 6.7.7 Limitations: AUEB-NLP/ecthr_cases contains Facts text; Law sections are HUDOC-only. The measurement therefore characterises Facts-section density; future work needs HUDOC scraping for Law-section measurement.
-- 6.8 **Mechanistic diagnosis** — three architectural failure modes
+- 6.8 **Mechanistic diagnosis**, three architectural failure modes
   - 6.8.1 Failure mode 1: hard STE gate bias (Jang ICLR 2017; Gapped STE ICML 2022)
   - 6.8.2 Failure mode 2: asymmetric W-matrix training (operator-specific weights with 100× imbalance in training examples)
   - 6.8.3 Failure mode 3: pretrained-encoder negation blindness (ScoNe ACL 2020, Truong ACL Findings 2023, Semantic Adapter 2025)
-- 6.9 Synthesis: each failure mode is cited from broader GNN/encoder literature — this is what enables the principled v3 design (Chapter 7)
+- 6.9 Synthesis: each failure mode is cited from broader GNN/encoder literature, this is what enables the principled v3 design (Chapter 7)
 
 ---
 
-### Chapter 7 — A Signal-Preserving Architecture (v3) (~15 pages)
+### Chapter 7: A Signal-Preserving Architecture (v3) (~15 pages)
 
 This is C6 + C7. v3 is presented as a principled synthesis of fixes for three named prior failure modes, not as a novel architecture in its own right.
 
@@ -202,7 +202,7 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 
 ---
 
-### Chapter 8 — Experimental Evaluation (~20 pages)
+### Chapter 8: Experimental Evaluation (~20 pages)
 
 - 8.1 Experimental setup (hardware, software, seeds, bootstrap)
 - 8.2 Main results table
@@ -213,14 +213,14 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
   - **JusDef v3 (3 seeds keyword)**: TBD
   - **JusDef v3 (3 seeds neural)**: TBD
   - Transformer baselines from LexGLUE (context, not SOTA claim)
-- 8.3 Y\_exc evaluation (C2)
+- 8.3 Y_exc evaluation (C2)
 - 8.4 Two-corpus density sensitivity (C3 validation)
 - 8.5 Ablation studies
   - v3 without sign-cancellation regulariser
   - v3 without operator-conditioned attention
   - v3 with separate W_op (revert Failure-Mode-2 fix)
   - v3 with hard mask (revert Failure-Mode-1 fix)
-  - v3 with op_coef = (1,1,1,1) — empirical R-GCN reduction check (Proposition 2)
+  - v3 with op_coef = (1,1,1,1), empirical R-GCN reduction check (Proposition 2)
   - Authority scorer ablation
   - F3a ontology edges ablation
 - 8.6 Significance testing (paired bootstrap, 10000 resamples)
@@ -229,9 +229,9 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 
 ---
 
-### Chapter 9 — Discussion (~10 pages)
+### Chapter 9: Discussion (~10 pages)
 
-- 9.1 What the architecture buys (Proposition 2 floor + Y\_exc gain)
+- 9.1 What the architecture buys (Proposition 2 floor + Y_exc gain)
 - 9.2 Where defeasibility-aware GNNs win and lose
 - 9.3 The corpus-density-architecture interaction (the two-corpus finding)
 - 9.4 Encoder negation blindness as a binding constraint
@@ -240,10 +240,10 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 
 ---
 
-### Chapter 10 — Conclusion and Future Work (~7 pages)
+### Chapter 10: Conclusion and Future Work (~7 pages)
 
-- 10.1 Summary of contributions (C1–C7)
-- 10.2 Answering the four research questions (RQ1–RQ4)
+- 10.1 Summary of contributions (C1. C7)
+- 10.2 Answering the four research questions (RQ1. RQ4)
 - 10.3 Practical implications for legal NLP practitioners
 - 10.4 Future work
   - HUDOC full-judgment density measurement (need Law-section text)
@@ -258,14 +258,14 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 
 ### Appendices
 
-- A — Operator annotation guidelines (full 252-line document)
-- B — Inter-annotator agreement methodology and per-class statistics
-- C — Full proofs of Propositions 1, 2, 3, 4
-- D — Reproducibility: full Ampere pipeline scripts, sentinel structure, GPU-hour table
-- E — Per-label and per-document failure analysis
-- F — Neural operator detector training logs
-- G — ECtHR density measurement protocol and per-case breakdown
-- H — Bibliography
+- A. Operator annotation guidelines (full 252-line document)
+- B. Inter-annotator agreement methodology and per-class statistics
+- C. Full proofs of Propositions 1, 2, 3, 4
+- D. Reproducibility: full Ampere pipeline scripts, sentinel structure, GPU-hour table
+- E. Per-label and per-document failure analysis
+- F. Neural operator detector training logs
+- G. ECtHR density measurement protocol and per-case breakdown
+- H. Bibliography
 
 ---
 
@@ -302,25 +302,25 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 - **Internal committee presentation June 22 OR July 2**
 - Chapter 5 (corpus) draft
 
-### Week 3 (June 28–July 4): ablations + writing
+### Week 3 (June 28: July 4): ablations + writing
 - v3 ablations (~30h GPU)
 - Chapter 6 (diagnostic) draft including two-corpus density section
 - Chapter 7 (v3) draft
 
 ### Week 4 (July 5–11): writing core
 - Chapter 8 (experiments) draft
-- Y\_exc analysis
+- Y_exc analysis
 - Chapter 2 (related work) finalised
 
 ### Week 5 (July 12–18): integration
 - All chapters first-draft complete
 - Send to supervisors
 
-### Week 6–7 (July 19–Aug 1): supervisor review + revisions
+### Week 6–7 (July 19: Aug 1): supervisor review + revisions
 
 ### Week 8–10 (Aug 2–22): polish + appendices + figures
 
-### Week 11–12 (Aug 23–Sep 7): submission prep + viva prep
+### Week 11–12 (Aug 23: Sep 7): submission prep + viva prep
 
 ### Sep 13–15: submission
 
@@ -330,7 +330,7 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 
 | Risk | Mitigation |
 |---|---|
-| v3 underperforms R-GCN even on Y\_exc | Proposition 2 guarantees v3 ≥ R-GCN by construction. If empirical v3 underperforms, it indicates a regulariser/hyperparameter issue, not an architectural impossibility. Pilot identifies this in 10 hours. |
+| v3 underperforms R-GCN even on Y_exc | Proposition 2 guarantees v3 ≥ R-GCN by construction. If empirical v3 underperforms, it indicates a regulariser/hyperparameter issue, not an architectural impossibility. Pilot identifies this in 10 hours. |
 | Internal committee June 22 isn't ready | Present diagnostic + two-corpus density + dataset + early v3 pilot. The methodology + dataset + density are complete material. |
 | Supervisor wants different framing | Outline is editable. The literature review and density measurement back every framing decision. |
 | GPU budget runs out | Plan uses ~130 GPU-hours of the ~1-month booking; substantial buffer. |
@@ -342,9 +342,9 @@ This is C6 + C7. v3 is presented as a principled synthesis of fixes for three na
 ## What this outline commits us to (final)
 
 1. **One architecture**: v3 as specified in Chapter 7, with the four targeted modifications and Propositions 2/3/4. No more architectural pivots.
-2. **One evaluation protocol**: Y\_exc-stratified, on EUR-Lex with both keyword and neural detectors. No corpus pivots without supervisor agreement.
+2. **One evaluation protocol**: Y_exc-stratified, on EUR-Lex with both keyword and neural detectors. No corpus pivots without supervisor agreement.
 3. **Two empirical density data points**: EUR-Lex 0.71% and ECtHR 0.58%. The two-corpus finding (C3) is now part of the thesis.
-4. **No SOTA claim**: empirical target is recovery of R-GCN baseline (overall macro-F1) and gain on Y\_exc, not transformer-comparable macro-F1.
+4. **No SOTA claim**: empirical target is recovery of R-GCN baseline (overall macro-F1) and gain on Y_exc, not transformer-comparable macro-F1.
 5. **Three primary contributions** (methodological, dataset, density); two secondary (architectural, theoretical).
 
 The thesis is publishable even if v3 only matches R-GCN, because the methodological and dataset contributions are independently sufficient.

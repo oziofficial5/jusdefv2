@@ -1,7 +1,7 @@
 # JusDef Operator Annotation Guidelines
 
 **Version 1.0**
-**Project:** JusDef — Defeasible Graph Neural Networks for Legal Document Classification
+**Project:** JusDef, Defeasible Graph Neural Networks for Legal Document Classification
 **Annotator(s):** Awais Abdul Khaliq (primary), annotator (IAA on 300-sentence subset)
 **Purpose:** Label EUR-LEX sentences with one of four scope operators to train a neural operator detector, replacing the keyword-based detector that currently leaves 94.5% of mention edges in the default class.
 
@@ -19,7 +19,7 @@ This is the single most important artifact for the thesis-level defensibility of
 
 The operator set is $\Omega = \{\text{AFF}, \text{NEG}, \text{EXC}, \text{OVR}\}$. Each sentence receives exactly one label, corresponding to its **outermost** scope operator.
 
-### AFF — Default applicability  (label = 0)
+### AFF: Default applicability  (label = 0)
 
 **Marker:** the sentence states that something applies, holds, or is required in the normal course, without any exception, exclusion, or override.
 
@@ -31,7 +31,7 @@ Examples:
 - "The competent authority shall publish the list referred to in paragraph 1."
 - "For the purposes of this Regulation, 'controller' means the natural or legal person which determines the purposes of processing."
 
-### NEG — Negation of scope  (label = 1)
+### NEG: Negation of scope  (label = 1)
 
 **Marker:** the sentence states that a rule, regulation, or provision **does not apply** to some entity, class, or situation.
 
@@ -43,9 +43,9 @@ Examples:
 - "Articles 12 to 22 shall not apply to processing for archiving purposes."
 - "These provisions shall not be subject to the obligations laid down in Chapter III."
 
-### EXC — Exception (lex specialis)  (label = 2)
+### EXC: Exception (lex specialis)  (label = 2)
 
-**Marker:** the sentence carves out a sub-case where the default behaviour changes — a specific situation in which the rule's normal effect is suspended or altered.
+**Marker:** the sentence carves out a sub-case where the default behaviour changes, a specific situation in which the rule's normal effect is suspended or altered.
 
 **Assign EXC when:** the outermost structural move is an exception introduced by "except where", "unless", "save where", "save for", "with the exception of", "other than", "by way of derogation".
 
@@ -55,7 +55,7 @@ Examples:
 - "Member States may, save where otherwise provided, adopt stricter measures."
 - "This obligation applies with the exception of micro-enterprises employing fewer than ten persons."
 
-### OVR — Override (lex superior / lex posterior)  (label = 3)
+### OVR: Override (lex superior / lex posterior)  (label = 3)
 
 **Marker:** the sentence asserts that one rule prevails over, takes precedence over, or operates without prejudice to another rule.
 
@@ -73,13 +73,13 @@ Examples:
 
 For each sentence, follow these steps in order:
 
-1. **Read the sentence once, fully.** Identify the main verb and the structural meaning — what is the sentence *doing* to the applicability of a rule?
+1. **Read the sentence once, fully.** Identify the main verb and the structural meaning, what is the sentence *doing* to the applicability of a rule?
 
 2. **Identify the outermost scope operator, if any.** Ask: does the sentence exclude something (NEG), carve out an exception (EXC), assert precedence (OVR), or simply state a rule (AFF)?
 
 3. **If multiple operators are present, label the outermost.** The outermost operator is the one that governs the overall structural meaning of the sentence (see Section 3 on nesting).
 
-4. **Default to AFF when no clear scope-modifying signal is present.** A sentence that merely states an obligation, definition, or fact is AFF — even if it contains modal verbs (may, shall, must) or temporal conditions.
+4. **Default to AFF when no clear scope-modifying signal is present.** A sentence that merely states an obligation, definition, or fact is AFF, even if it contains modal verbs (may, shall, must) or temporal conditions.
 
 5. **If genuinely unsure, mark confidence = low.** Do not skip unless the sentence is unintelligible or not a legal-norm sentence at all (e.g., a fragment, a heading, a citation list).
 
@@ -87,7 +87,7 @@ For each sentence, follow these steps in order:
 
 ## 3. The nesting rule (critical)
 
-Legal sentences frequently embed one operator inside another. The annotation rule is: **label the outermost scope operator — the one that carries the dominant structural meaning of the sentence.**
+Legal sentences frequently embed one operator inside another. The annotation rule is: **label the outermost scope operator, the one that carries the dominant structural meaning of the sentence.**
 
 The canonical case:
 
@@ -99,15 +99,15 @@ Contrast with:
 
 > "Article 5 shall apply except to small enterprises."
 
-Here the outermost move is the exception — Article 5 applies (AFF-like default) but with a carve-out. There is no negation of the whole. **Label it EXC.**
+Here the outermost move is the exception. Article 5 applies (AFF-like default) but with a carve-out. There is no negation of the whole. **Label it EXC.**
 
 The distinction: in the first example, the rule's default is *non-application* with a re-inclusion; in the second, the rule's default is *application* with a carve-out. The outermost operator is whichever governs the sentence's overall claim.
 
-**The composition algebra in the paper handles what happens to the nested operators downstream — the annotator's only job is to identify the outermost one.**
+**The composition algebra in the paper handles what happens to the nested operators downstream, the annotator's only job is to identify the outermost one.**
 
 ---
 
-## 4. Edge cases (decided in advance — do not deviate)
+## 4. Edge cases (decided in advance: do not deviate)
 
 | Sentence pattern | Label | Reasoning |
 |---|---|---|
@@ -117,9 +117,9 @@ The distinction: in the first example, the rule's default is *non-application* w
 | "Article 5 shall apply except to small enterprises." | EXC | Outermost move is the exception |
 | "Notwithstanding Article 5, Article 7 shall prevail." | OVR | Override of one provision by another |
 | "Without prejudice to Article 5, Article 7 applies in cases X." | OVR | Override expressing precedence |
-| "Member States may adopt stricter measures." | AFF | Deontic modality (may) — normal regulatory language, not a scope operator |
-| "The controller shall implement appropriate measures." | AFF | Deontic (shall) — obligation, not scope modification |
-| "This Regulation shall apply from 1 January 2024." | AFF | Temporal scope — timing, not an exception |
+| "Member States may adopt stricter measures." | AFF | Deontic modality (may), normal regulatory language, not a scope operator |
+| "The controller shall implement appropriate measures." | AFF | Deontic (shall), obligation, not scope modification |
+| "This Regulation shall apply from 1 January 2024." | AFF | Temporal scope, timing, not an exception |
 | "See Article 5." / "as referred to in Article 12" | AFF | Cross-reference, not a scope modifier |
 | "There is no obligation to notify in such cases." | AFF | Statement of fact (negative phrasing), not a scope negation of a rule |
 | "This Article is without prejudice to national criminal law." | OVR | Precedence relation (without prejudice to) |
@@ -130,7 +130,7 @@ The distinction: in the first example, the rule's default is *non-application* w
 
 These are **not** in the JusDef operator vocabulary and the paper's §3 explicitly notes them as part of the ~15% of constructs the four-operator scheme does not cover. **Label them AFF** and let the framework treat them as default applicability:
 
-- **Deontic modalities:** "may", "shall", "must", "should" — these express obligation/permission, not scope modification.
+- **Deontic modalities:** "may", "shall", "must", "should", these express obligation/permission, not scope modification.
 - **Temporal scope:** "shall apply from", "until", "during the transitional period", "for a period of X years".
 - **Cross-references:** "see Article X", "referred to in", "pursuant to", "in accordance with".
 - **Negative factual statements** that do not negate a rule's scope: "there is no requirement to…", "no fee shall be charged" (this is a substantive rule, not a scope negation).
@@ -150,12 +150,12 @@ When in doubt on a derogation, check whether a specific provision is named. Name
 
 These are the patterns most likely to cause annotator disagreement. They are resolved here so that the primary annotator and the annotator apply the same rule:
 
-1. **"May" vs. "shall"** — both AFF. Deontic strength does not change the operator; neither modifies scope.
-2. **Temporal scopes** — AFF. Timing is not an exception even though it limits when a rule applies.
-3. **Nested scopes** — outermost operator wins (Section 3).
-4. **Negative phrasing without scope negation** — "There is no obligation to…" is AFF (a substantive statement), whereas "This Regulation shall not apply to…" is NEG (a scope negation). The test: is the sentence negating the *applicability of a rule* (NEG) or stating a *substantive fact/rule* (AFF)?
-5. **Conditional applicability** — "This applies where X" is AFF (it is a positive scope condition, not an exception). "This applies except where X" is EXC. The presence of "except/unless/save" is the trigger.
-6. **Multiple sentences merged by preprocessing** — if a single annotation item contains two clauses with different operators, label by the operator of the main/governing clause. If they are genuinely co-equal, label by the first one and mark confidence = low.
+1. **"May" vs. "shall"**, both AFF. Deontic strength does not change the operator; neither modifies scope.
+2. **Temporal scopes**. AFF. Timing is not an exception even though it limits when a rule applies.
+3. **Nested scopes**, outermost operator wins (Section 3).
+4. **Negative phrasing without scope negation**, "There is no obligation to…" is AFF (a substantive statement), whereas "This Regulation shall not apply to…" is NEG (a scope negation). The test: is the sentence negating the *applicability of a rule* (NEG) or stating a *substantive fact/rule* (AFF)?
+5. **Conditional applicability**, "This applies where X" is AFF (it is a positive scope condition, not an exception). "This applies except where X" is EXC. The presence of "except/unless/save" is the trigger.
+6. **Multiple sentences merged by preprocessing**, if a single annotation item contains two clauses with different operators, label by the operator of the main/governing clause. If they are genuinely co-equal, label by the first one and mark confidence = low.
 
 ---
 
@@ -176,8 +176,8 @@ Each annotation is one JSONL line:
 ```
 
 - `label`: integer 0=AFF, 1=NEG, 2=EXC, 3=OVR
-- `confidence`: "high" or "low" — low-confidence items can be excluded from the training set later if needed
-- `heuristic`: the pre-classification bucket from the candidate generator (used only for stratification, **never** as a hint — see Section 8)
+- `confidence`: "high" or "low", low-confidence items can be excluded from the training set later if needed
+- `heuristic`: the pre-classification bucket from the candidate generator (used only for stratification, **never** as a hint, see Section 8)
 
 ---
 
@@ -187,7 +187,7 @@ Each annotation is one JSONL line:
 
 1. Re-read this guidelines document end to end.
 2. Count your labels per class. If any defeat-relevant class (NEG/EXC/OVR) has fewer than ~10 examples, the candidate stratification may need adjustment.
-3. If you are skipping more than 20% of sentences, the guidelines need refinement — most likely Section 4 needs another edge case.
+3. If you are skipping more than 20% of sentences, the guidelines need refinement, most likely Section 4 needs another edge case.
 4. Identify any recurring pattern you found ambiguous and add it to Section 4 with a fixed decision.
 
 **This calibration step is where most annotation projects fail.** Inconsistent early annotations poison the training set. Spend the 30 minutes.
@@ -213,7 +213,7 @@ You are annotating **individual sentences in isolation**, not whole documents. T
 
 If you let reasoning like *"this concept is rare, so this sentence is probably a NEG"* enter your decisions, you induce a leak between the $\mathcal{Y}_{\mathrm{exc}}$ subset construction and the operator labels. That would make the neural detector's apparent success circular and would not survive examiner scrutiny.
 
-**Treat each sentence purely on its own linguistic and structural merits.** The `heuristic` field is present only so the candidate set was stratified to include enough rare operators; it must never guide your label. In fact, the most valuable annotations are the ones where you *disagree* with the heuristic — those are exactly the cases the keyword detector gets wrong, and they are why the neural detector is worth building.
+**Treat each sentence purely on its own linguistic and structural merits.** The `heuristic` field is present only so the candidate set was stratified to include enough rare operators; it must never guide your label. In fact, the most valuable annotations are the ones where you *disagree* with the heuristic, those are exactly the cases the keyword detector gets wrong, and they are why the neural detector is worth building.
 
 ---
 
