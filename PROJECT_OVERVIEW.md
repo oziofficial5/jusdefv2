@@ -54,7 +54,7 @@ Any two of the three pillars (a method, resources, a characterisation) are inten
 
 3,000 EUR-Lex sentences labelled with one of four operators (AFF, NEG, EXC, OVR) by an AI-assisted bulk-labelling pipeline, validated in two stages.
 
-**Provenance.** Candidate labels were produced with Claude Opus 5 (Anthropic) in June 2026 under a fixed annotation guideline, then validated by human annotation. This is disclosed in the thesis (Chapter 3) and recorded here because the corpus is released for reuse.
+**Provenance.** Candidate labels were produced with Claude Sonnet 5 (`claude-sonnet-5`, Anthropic) on 2 June 2026 under a fixed annotation guideline, then validated by human annotation. This is disclosed in the thesis (Chapter 3) and recorded here because the corpus is released for reuse.
 
 **Validation.** A 100-sentence self-review at Cohen's κ = 0.79, and a 300-sentence blind annotation by an independent peer annotator at κ = 0.77 (substantial agreement under Landis–Koch). The self-review measures the labelling function's consistency with itself and is therefore an upper bound, not independent evidence. The peer figure is the one that carries weight and the one that bounds the detector.
 
